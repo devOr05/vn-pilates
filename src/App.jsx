@@ -184,6 +184,32 @@ function App() {
         doc.save(`VN-Pilates-Reporte-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
+    const exportStudentPDF = (student) => {
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text(`Ficha de Alumno: ${student.name}`, 14, 20);
+
+        doc.setFontSize(11);
+        doc.text(`Clases por semana: ${student.classesPerWeek}`, 14, 30);
+        doc.text(`Fecha de ingreso: ${student.entryDate}`, 14, 35);
+
+        const historyHeaders = [["Mes", "Monto", "Recibió", "Fecha de Pago"]];
+        const historyData = student.history.map(h => [
+            h.month, h.amount, h.receivedBy, h.date
+        ]);
+
+        doc.autoTable({
+            startY: 45,
+            head: historyHeaders,
+            body: historyData,
+            theme: 'striped',
+            headStyles: { fillStyle: '#6366f1' }
+        });
+
+        doc.save(`Ficha-${student.name.replace(/\s+/g, '-')}.pdf`);
+    };
+
     const filteredStudents = students.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -217,7 +243,8 @@ function App() {
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
-                            <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar Cambios</button>
+                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar ficha PDF"><FileText size={18} /></button>
+                            <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
                         </div>
                     </header>
 
@@ -396,12 +423,14 @@ function App() {
                             <div className="report-card">
                                 <div className="report-header">
                                     <h3>Resumen de Gestión</h3>
-                                    <button className="btn-secondary" onClick={exportToCSV}>
-                                        <FileText size={18} /> Excel
-                                    </button>
-                                    <button className="btn-secondary" onClick={exportToPDF}>
-                                        <FileText size={18} /> PDF
-                                    </button>
+                                    <div className="report-header-buttons">
+                                        <button className="btn-secondary" onClick={exportToCSV}>
+                                            Excel
+                                        </button>
+                                        <button className="btn-secondary" onClick={exportToPDF}>
+                                            PDF
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="report-stats">
