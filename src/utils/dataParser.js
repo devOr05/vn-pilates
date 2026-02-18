@@ -49,7 +49,10 @@ export const parsePilatesCSV = (csvString) => {
                             }
                         });
 
-                        students.push(student);
+                        // Only add students who have name AND (classes per week OR history)
+                        if (student.name && (student.classesPerWeek || student.history.length > 0)) {
+                            students.push(student);
+                        }
                     }
                     resolve(students);
                 } catch (err) {

@@ -92,6 +92,27 @@ function App() {
         setSelectedStudent({ ...selectedStudent, [field]: value });
     };
 
+    const calculateTotals = () => {
+        let totalMoney = 0;
+        let totalClasses = 0;
+        let vanniMoney = 0;
+        let nickiMoney = 0;
+
+        students.forEach(s => {
+            totalClasses += parseInt(s.classesPerWeek) || 0;
+            s.history.forEach(h => {
+                const amount = parseFloat(h.amount.replace('$', '').replace(',', '')) || 0;
+                totalMoney += amount;
+                if (h.receivedBy?.toLowerCase().includes('vani')) vanniMoney += amount;
+                if (h.receivedBy?.toLowerCase().includes('nic')) nickiMoney += amount;
+            });
+        });
+
+        return { totalMoney, totalClasses, vanniMoney, nickiMoney };
+    };
+
+    const totals = calculateTotals();
+
     const exportToCSV = () => {
         // Basic export: rebuild spreadsheet structure
         const headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM", "HISTORIAL (MES:MONTO:RECIBE:FECHA)"];
@@ -323,22 +344,47 @@ function App() {
                         <div className="reports-container">
                             <div className="report-card">
                                 <div className="report-header">
-                                    <h3>Resumen Financiero</h3>
+                                    <h3>Resumen de Gestión</h3>
                                     <button className="btn-secondary" onClick={exportToCSV}>
                                         <FileText size={18} /> Exportar Excel Completo
                                     </button>
                                 </div>
+
                                 <div className="report-stats">
-                                    <div className="stat">
-                                        <label>Total Alumnos</label>
-                                        <p>{students.length}</p>
+                                    <div className="stat-main">
+                                        <label>Recaudación Total</label>
+                                        <p className="amount-total">${totals.totalMoney.toLocaleString()}</p>
                                     </div>
-                                    <div className="stat">
-                                        <label>Pagos Registrados</label>
-                                        <p>{students.reduce((acc, s) => acc + s.history.length, 0)}</p>
+                                    <div className="stat-grid">
+                                        <div className="stat">
+                                            <label>Total Alumnos</label>
+                                            <p>{students.length}</p>
+                                        </div>
+                                        <div className="stat">
+                                            <label>Clases por Sem.</label>
+                                            <p>{totals.totalClasses}</p>
+                                        </div>
+                                        <div className="stat">
+                                            <label>Recibió Vanni</label>
+                                            <p className="amount-small">${totals.vanniMoney.toLocaleString()}</p>
+                                        </div>
+                                        <div className="stat">
+                                            <label>Recibió Nicki</label>
+                                            <p className="amount-small">${totals.nickiMoney.toLocaleString()}</p>
+                                        </div>
                                     </div>
                                 </div>
-                                <p className="note">Próximamente: Desglose por profesor y neto mensual.</p>
+
+                                <div className="report-extra">
+                                    <div className="extra-item">
+                                        <History size={16} />
+                                        <span>{students.reduce((acc, s) => acc + s.history.length, 0)} pagos procesados</span>
+                                    </div>
+                                    <div className="extra-item">
+                                        <Calendar size={16} />
+                                        <span>Última actualización: {new Date().toLocaleDateString()}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
