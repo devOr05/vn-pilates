@@ -27,8 +27,10 @@ body {
     display: flex;
     height: 100vh;
     overflow: hidden;
-    padding: 1rem;
-    background: #e2e8f0;
+    padding: 1.5rem;
+    /* Increased padding */
+    background: #cbd5e1;
+    /* Slightly darker slate */
     /* Darker background to show the "window" effect */
 }
 
@@ -277,10 +279,13 @@ nav {
 }
 
 .student-profile {
-    padding: 3rem;
+    padding: 2.5rem;
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
+    overflow-y: auto;
+    /* Enable scroll if content is long */
+    flex: 1;
 }
 
 .profile-header {
@@ -642,4 +647,26 @@ nav {
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-light);
+}
+
+/* Scrollbar styling for better visibility */
+.dashboard::-webkit-scrollbar,
+.student-profile::-webkit-scrollbar {
+    width: 8px;
+}
+
+.dashboard::-webkit-scrollbar-track,
+.student-profile::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+.dashboard::-webkit-scrollbar-thumb,
+.student-profile::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.dashboard::-webkit-scrollbar-thumb:hover,
+.student-profile::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }

@@ -141,7 +141,7 @@ function App() {
 
                 <main className="main-content">
                     <header className="main-header">
-                        <button className="btn-back" onClick={() => setSelectedStudent(null)}>
+                        <button className="btn-back" onClick={() => { setSelectedStudent(null); setSearchTerm(''); }}>
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
@@ -304,15 +304,16 @@ function App() {
                                     ))
                                 ) : (
                                     <div className="empty-state">
-                                        <div className="icon-box">
-                                            <FileText size={40} />
+                                        <div className="icon-box highlight">
+                                            <FileText size={48} />
                                         </div>
                                         <div className="text-box">
-                                            <p>Cargue los datos iniciales para comenzar</p>
-                                            <span>Seleccione el archivo "Planilla vieja VN.csv"</span>
+                                            <h3>Bienvenido a VN Pilates</h3>
+                                            <p>Aún no hay datos cargados en esta computadora.</p>
+                                            <span>Por favor, sube el archivo de gestión para comenzar.</span>
                                         </div>
                                         <button className="btn-primary-large" onClick={() => fileInputRef.current.click()}>
-                                            Seleccionar Archivo
+                                            Importar Planilla VN (.csv)
                                         </button>
                                     </div>
                                 )}
