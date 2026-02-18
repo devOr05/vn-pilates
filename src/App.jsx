@@ -35,10 +35,13 @@ function App() {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Check if it's actually a CSV
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-            alert('Error: Por favor selecciona un archivo con extensión .csv (ej: Planilla vieja VN.csv)');
-            return;
+        // Check if it's actually a CSV (relaxing check to help with Drive files)
+        const isCSV = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
+
+        if (!isCSV) {
+            if (!confirm('Este archivo no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?')) {
+                return;
+            }
         }
 
         try {
@@ -231,7 +234,10 @@ function App() {
     };
 
     const filteredStudents = students.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase())
+        s.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        s.id !== "0" &&
+        s.name.toUpperCase() !== "GRACIELA DOBAL" &&
+        s.name.toUpperCase() !== "DANIEL VIEIRA"
     );
 
     if (selectedStudent) {
@@ -402,7 +408,7 @@ function App() {
                                     type="file"
                                     ref={fileInputRef}
                                     onChange={handleFileUpload}
-                                    accept=".csv"
+                                    accept=".csv, text/csv, application/vnd.ms-excel, .txt, *"
                                     style={{ display: 'none' }}
                                 />
                             </div>

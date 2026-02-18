@@ -50,7 +50,12 @@ export const parsePilatesCSV = (csvString) => {
                         });
 
                         // Only add students who have name AND (classes per week OR history)
-                        if (student.name && (student.classesPerWeek || student.history.length > 0)) {
+                        // Also skip rows with ID "0" as they seem to be placeholders/headers
+                        if (student.name &&
+                            student.id !== "0" &&
+                            student.name.toUpperCase() !== "GRACIELA DOBAL" &&
+                            student.name.toUpperCase() !== "DANIEL VIEIRA" &&
+                            (student.classesPerWeek || student.history.length > 0)) {
                             students.push(student);
                         }
                     }
