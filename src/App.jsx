@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { Plus, Search, Filter, History, Trash2, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft } from 'lucide-react'
 import { parsePilatesCSV } from './utils/dataParser'
+import { jsPDF } from 'jspdf'
+import 'jspdf-autotable'
 
 function App() {
     const [students, setStudents] = useState([]);
@@ -131,6 +133,55 @@ function App() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const exportToPDF = () => {
+        const doc = new jsPDF();
+
+        // Add Title
+        doc.setFontSize(18);
+        doc.text("Resumen de Gestión VN Pilates", 14, 20);
+        doc.setFontSize(11);
+        doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 14, 30);
+
+        // Financial Summary Table
+        const financialHeaders = [["Concepto", "Valor"]];
+        const financialData = [
+            ["Recaudación Total", `$${totals.totalMoney.toLocaleString()}`],
+            ["Total Alumnos", students.length.toString()],
+            ["Total Clases por Sem.", totals.totalClasses.toString()],
+            ["Recibió Vanni", `$${totals.vanniMoney.toLocaleString()}`],
+            ["Recibió Nicki", `$${totals.nickiMoney.toLocaleString()}`]
+        ];
+
+        doc.autoTable({
+            startY: 40,
+            head: financialHeaders,
+            body: financialData,
+            theme: 'striped',
+            headStyles: { fillStyle: '#6366f1' }
+        });
+
+        // Students Table
+        doc.setFontSize(14);
+        doc.text("Listado de Alumnos", 14, doc.lastAutoTable.finalY + 15);
+
+        const studentHeaders = [["Nombre", "Clases/Sem", "Ingreso", "Último Pago"]];
+        const studentData = students.map(s => [
+            s.name,
+            s.classesPerWeek,
+            s.entryDate,
+            s.history.length > 0 ? `${s.history[0].month} (${s.history[0].amount})` : '-'
+        ]);
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 20,
+            head: studentHeaders,
+            body: studentData,
+            theme: 'grid'
+        });
+
+        doc.save(`VN-Pilates-Reporte-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
     const filteredStudents = students.filter(s =>
@@ -346,7 +397,10 @@ function App() {
                                 <div className="report-header">
                                     <h3>Resumen de Gestión</h3>
                                     <button className="btn-secondary" onClick={exportToCSV}>
-                                        <FileText size={18} /> Exportar Excel Completo
+                                        <FileText size={18} /> Excel
+                                    </button>
+                                    <button className="btn-secondary" onClick={exportToPDF}>
+                                        <FileText size={18} /> PDF
                                     </button>
                                 </div>
 
