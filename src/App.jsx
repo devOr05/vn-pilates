@@ -35,11 +35,17 @@ function App() {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Check if it's actually a CSV (relaxing check to help with Drive files)
+        // Check if it's a Google Sheets link (not a real CSV)
+        if (file.name.toLowerCase().endsWith('.gsheet')) {
+            alert('Error: Este archivo es un "Acceso directo de Google Sheets". Para cargarlo, debes abrir el archivo en Google Sheets y descargarlo como CSV (Archivo > Descargar > Valores separados por comas).');
+            return;
+        }
+
+        // Check if it's actually a CSV (lenient check to help with Drive files)
         const isCSV = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
 
-        if (!isCSV) {
-            if (!confirm('Este archivo no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?')) {
+        if (!isCSV && file.type !== "") {
+            if (!confirm(`El archivo "${file.name}" no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?`)) {
                 return;
             }
         }
@@ -408,7 +414,7 @@ function App() {
                                     type="file"
                                     ref={fileInputRef}
                                     onChange={handleFileUpload}
-                                    accept=".csv, text/csv, application/vnd.ms-excel, .txt, *"
+                                    /* Removed accept attribute to prevent files from being grayed out on Some Drive/Windows setups */
                                     style={{ display: 'none' }}
                                 />
                             </div>
