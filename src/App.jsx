@@ -322,7 +322,12 @@ function App() {
                     ) : (
                         <div className="reports-container">
                             <div className="report-card">
-                                <h3>Resumen Financiero</h3>
+                                <div className="report-header">
+                                    <h3>Resumen Financiero</h3>
+                                    <button className="btn-secondary" onClick={exportToCSV}>
+                                        <FileText size={18} /> Exportar Excel Completo
+                                    </button>
+                                </div>
                                 <div className="report-stats">
                                     <div className="stat">
                                         <label>Total Alumnos</label>
