@@ -33,11 +33,31 @@ function App() {
 
     const handleFileUpload = async (event) => {
         const file = event.target.files[0];
-        if (file) {
+        if (!file) return;
+
+        // Check if it's actually a CSV
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            alert('Error: Por favor selecciona un archivo con extensión .csv (ej: Planilla vieja VN.csv)');
+            return;
+        }
+
+        try {
             const text = await file.text();
+            if (!text || text.trim().length === 0) {
+                throw new Error('El archivo está vacío');
+            }
+
             const data = await parsePilatesCSV(text);
+            if (!data || data.length === 0) {
+                throw new Error('No se encontraron alumnos válidos en el archivo');
+            }
+
             setStudents(data);
             setIsLoaded(true);
+            alert('¡Datos cargados con éxito!');
+        } catch (error) {
+            console.error('Error al cargar archivo:', error);
+            alert(`Error al procesar el archivo: ${error.message}. Asegúrate de que sea el formato de exportación esperado.`);
         }
     };
 
