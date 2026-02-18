@@ -27,6 +27,9 @@ body {
     display: flex;
     height: 100vh;
     overflow: hidden;
+    padding: 1rem;
+    background: #e2e8f0;
+    /* Darker background to show the "window" effect */
 }
 
 /* Sidebar */
@@ -38,6 +41,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2.5rem;
+    border-radius: 24px 0 0 24px;
 }
 
 .logo-section h1 {
@@ -88,6 +92,8 @@ nav {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: white;
+    border-radius: 0 24px 24px 0;
 }
 
 .main-header {
@@ -144,9 +150,26 @@ nav {
     transition: var(--transition);
 }
 
-.btn-add:hover {
+.btn-save {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-save:hover {
     filter: brightness(1.1);
-    transform: translateY(-2px);
+}
+
+filter: brightness(1.1);
+transform: translateY(-2px);
 }
 
 /* Dashboard Area */
@@ -278,21 +301,51 @@ nav {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
 }
 
-.profile-info h2 {
+.profile-info h2,
+.edit-name {
     font-size: 2.5rem;
     font-weight: 800;
     margin-bottom: 0.75rem;
+    border: none;
+    background: none;
+    width: 100%;
+    color: var(--text-main);
+    padding: 0.5rem 0;
+}
+
+.edit-name:focus {
+    outline: none;
+    background: var(--bg-main);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
 }
 
 .badges {
     display: flex;
-    gap: 0.75rem;
+    gap: 1.5rem;
 }
 
-.badge {
+.badge,
+.badge-input {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     border-radius: 100px;
     font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.badge-input label {
+    color: var(--text-muted);
+}
+
+.badge-input input {
+    border: none;
+    background: var(--bg-main);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    width: 60px;
     font-weight: 700;
 }
 
@@ -516,16 +569,55 @@ nav {
     border-color: var(--text-muted);
 }
 
-.empty-state {
+/* Reports */
+.reports-container {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.report-card {
     background: white;
-    border: 2px dashed var(--border);
+    border: 1px solid var(--border);
+    padding: 2rem;
     border-radius: 24px;
-    padding: 5rem 2rem;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
+}
+
+.report-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.stat label {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.stat p {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.note {
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+background: white;
+border: 2px dashed var(--border);
+border-radius: 24px;
+padding: 5rem 2rem;
+text-align: center;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 1.5rem;
 }
 
 .empty-state p {

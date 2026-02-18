@@ -9,6 +9,7 @@ function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoaded, setIsLoaded] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [currentView, setCurrentView] = useState('alumnos'); // alumnos | historiales | reportes
     const [newStudent, setNewStudent] = useState({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0] });
     const fileInputRef = useRef(null);
 
@@ -81,6 +82,16 @@ function App() {
         setStudents(updatedStudents);
     };
 
+    const saveStudentChanges = () => {
+        if (!selectedStudent) return;
+        setStudents(students.map(s => s.id === selectedStudent.id ? selectedStudent : s));
+        alert('Cambios guardados correctamente');
+    };
+
+    const updateStudentField = (field, value) => {
+        setSelectedStudent({ ...selectedStudent, [field]: value });
+    };
+
     const exportToCSV = () => {
         // Basic export: rebuild spreadsheet structure
         const headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM", "HISTORIAL (MES:MONTO:RECIBE:FECHA)"];
@@ -113,9 +124,18 @@ function App() {
                         <h1>VN Pilates</h1>
                     </div>
                     <nav>
-                        <button className="nav-item active"><User size={20} /> Alumnos</button>
-                        <button className="nav-item"><History size={20} /> Historiales</button>
-                        <button className="nav-item"><FileText size={20} /> Reportes</button>
+                        <button
+                            className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
+                            onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
+                        >
+                            <User size={20} /> Alumnos
+                        </button>
+                        <button
+                            className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
+                            onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
+                        >
+                            <FileText size={20} /> Reportes
+                        </button>
                     </nav>
                 </aside>
 
@@ -125,7 +145,7 @@ function App() {
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
-                            <button className="btn-save"><Save size={18} /> Guardar Cambios</button>
+                            <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar Cambios</button>
                         </div>
                     </header>
 
@@ -135,10 +155,28 @@ function App() {
                                 <User size={40} />
                             </div>
                             <div className="profile-info">
-                                <h2>{selectedStudent.name}</h2>
+                                <input
+                                    className="edit-name"
+                                    value={selectedStudent.name}
+                                    onChange={(e) => updateStudentField('name', e.target.value)}
+                                />
                                 <div className="badges">
-                                    <span className="badge frequency">{selectedStudent.classesPerWeek} clases/sem</span>
-                                    <span className="badge entry">Desde: {selectedStudent.entryDate || 'N/A'}</span>
+                                    <div className="badge-input">
+                                        <label>Clases/Sem:</label>
+                                        <input
+                                            type="number"
+                                            value={selectedStudent.classesPerWeek}
+                                            onChange={(e) => updateStudentField('classesPerWeek', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="badge-input">
+                                        <label>Desde:</label>
+                                        <input
+                                            type="text"
+                                            value={selectedStudent.entryDate}
+                                            onChange={(e) => updateStudentField('entryDate', e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -193,77 +231,111 @@ function App() {
                     <h1>VN Pilates</h1>
                 </div>
                 <nav>
-                    <button className="nav-item active"><User size={20} /> Alumnos</button>
-                    <button className="nav-item"><History size={20} /> Historiales</button>
-                    <button className="nav-item"><FileText size={20} /> Reportes</button>
+                    <button
+                        className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
+                        onClick={() => setCurrentView('alumnos')}
+                    >
+                        <User size={20} /> Alumnos
+                    </button>
+                    <button
+                        className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
+                        onClick={() => setCurrentView('reportes')}
+                    >
+                        <FileText size={20} /> Reportes
+                    </button>
                 </nav>
             </aside>
 
             <main className="main-content">
                 <header className="main-header">
-                    <div className="search-bar">
-                        <Search size={18} className="search-icon" />
-                        <input
-                            type="text"
-                            placeholder="Buscar alumno..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
+                    {currentView === 'alumnos' ? (
+                        <div className="search-bar">
+                            <Search size={18} className="search-icon" />
+                            <input
+                                type="text"
+                                placeholder="Buscar alumno..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    ) : (
+                        <h2>Reportes de Gestión</h2>
+                    )}
+                    {currentView === 'alumnos' && (
+                        <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
+                    )}
                 </header>
 
                 <section className="dashboard">
-                    <div className="student-list-container">
-                        <div className="list-header">
-                            <h3>Listado de Alumnos ({filteredStudents.length})</h3>
-                            <div className="list-actions">
-                                {isLoaded && <button className="btn-secondary" onClick={exportToCSV}>Exportar CSV</button>}
-                                {!isLoaded && (
-                                    <button className="btn-upload" onClick={() => fileInputRef.current.click()}>
-                                        Importar CSV de Gestión
-                                    </button>
+                    {currentView === 'alumnos' ? (
+                        <div className="student-list-container">
+                            <div className="list-header">
+                                <h3>Listado de Alumnos ({filteredStudents.length})</h3>
+                                <div className="list-actions">
+                                    {isLoaded && <button className="btn-secondary" onClick={exportToCSV}>Exportar CSV</button>}
+                                    {!isLoaded && (
+                                        <button className="btn-upload" onClick={() => fileInputRef.current.click()}>
+                                            Importar CSV de Gestión
+                                        </button>
+                                    )}
+                                </div>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    accept=".csv"
+                                    style={{ display: 'none' }}
+                                />
+                            </div>
+
+                            <div className="student-grid">
+                                {isLoaded ? (
+                                    filteredStudents.map(student => (
+                                        <div key={student.id} className="student-card" onClick={() => setSelectedStudent(student)}>
+                                            <div className="student-avatar">
+                                                {student.name.charAt(0)}
+                                            </div>
+                                            <div className="student-meta">
+                                                <h4>{student.name}</h4>
+                                                <p>{student.classesPerWeek} veces por semana</p>
+                                            </div>
+                                            <ChevronRight size={18} className="arrow" />
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="empty-state">
+                                        <div className="icon-box">
+                                            <FileText size={40} />
+                                        </div>
+                                        <div className="text-box">
+                                            <p>Cargue los datos iniciales para comenzar</p>
+                                            <span>Seleccione el archivo "Planilla vieja VN.csv"</span>
+                                        </div>
+                                        <button className="btn-primary-large" onClick={() => fileInputRef.current.click()}>
+                                            Seleccionar Archivo
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                                accept=".csv"
-                                style={{ display: 'none' }}
-                            />
                         </div>
-
-                        <div className="student-grid">
-                            {isLoaded ? (
-                                filteredStudents.map(student => (
-                                    <div key={student.id} className="student-card" onClick={() => setSelectedStudent(student)}>
-                                        <div className="student-avatar">
-                                            {student.name.charAt(0)}
-                                        </div>
-                                        <div className="student-meta">
-                                            <h4>{student.name}</h4>
-                                            <p>{student.classesPerWeek} veces por semana</p>
-                                        </div>
-                                        <ChevronRight size={18} className="arrow" />
+                    ) : (
+                        <div className="reports-container">
+                            <div className="report-card">
+                                <h3>Resumen Financiero</h3>
+                                <div className="report-stats">
+                                    <div className="stat">
+                                        <label>Total Alumnos</label>
+                                        <p>{students.length}</p>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="empty-state">
-                                    <div className="icon-box">
-                                        <FileText size={40} />
+                                    <div className="stat">
+                                        <label>Pagos Registrados</label>
+                                        <p>{students.reduce((acc, s) => acc + s.history.length, 0)}</p>
                                     </div>
-                                    <div className="text-box">
-                                        <p>Cargue los datos iniciales para comenzar</p>
-                                        <span>Seleccione el archivo "Planilla vieja VN.csv"</span>
-                                    </div>
-                                    <button className="btn-primary-large" onClick={() => fileInputRef.current.click()}>
-                                        Seleccionar Archivo
-                                    </button>
                                 </div>
-                            )}
+                                <p className="note">Próximamente: Desglose por profesor y neto mensual.</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </section>
 
                 {showAddModal && (
