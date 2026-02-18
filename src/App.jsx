@@ -144,18 +144,18 @@ function App() {
                     <div className="logo-section">
                         <h1>VN Pilates</h1>
                     </div>
-                    <nav>
+                    <nav className="nav-menu">
                         <button
                             className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
                             onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
                         >
-                            <User size={20} /> Alumnos
+                            <User size={20} /> <span>Alumnos</span>
                         </button>
                         <button
                             className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
                             onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
                         >
-                            <FileText size={20} /> Reportes
+                            <FileText size={20} /> <span>Reportes</span>
                         </button>
                     </nav>
                 </aside>
@@ -251,18 +251,18 @@ function App() {
                 <div className="logo-section">
                     <h1>VN Pilates</h1>
                 </div>
-                <nav>
+                <nav className="nav-menu">
                     <button
                         className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
                         onClick={() => setCurrentView('alumnos')}
                     >
-                        <User size={20} /> Alumnos
+                        <User size={22} /> <span>Alumnos</span>
                     </button>
                     <button
                         className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
                         onClick={() => setCurrentView('reportes')}
                     >
-                        <FileText size={20} /> Reportes
+                        <FileText size={22} /> <span>Reportes</span>
                     </button>
                 </nav>
             </aside>
