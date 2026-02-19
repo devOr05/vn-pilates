@@ -1116,8 +1116,10 @@ body {
     padding: 2rem;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
     position: relative;
-    max-height: 90vh; scrollbar-width: thin; scrollbar-color: var(--accent-light) transparent;
+    max-height: 90vh;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-light) transparent;
 }
 
 .form-group-row {
@@ -1770,6 +1772,7 @@ body {
         box-sizing: border-box;
     }
 }
+
 /* Import Help Box Styles */
 .modal-help-box {
     background: #f8fafc;

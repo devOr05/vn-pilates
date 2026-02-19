@@ -200,7 +200,7 @@ function App() {
         try {
             const text = await file.text();
             if (!text || text.trim().length === 0) {
-                throw new Error('El archivo est├í vacío');
+                throw new Error('El archivo está vacío');
             }
 
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
@@ -274,7 +274,7 @@ function App() {
 
     const deleteStudent = (studentId, event) => {
         event.stopPropagation();
-        if (window.confirm('¿Est├ís seguro de eliminar este alumno?')) {
+        if (window.confirm('¿Estás seguro de eliminar este alumno?')) {
             setStudents(students.filter(s => s.id !== studentId));
             showToast("Alumno eliminado", "error");
         }
@@ -429,7 +429,7 @@ function App() {
             // Add Expenses section
             rows.push([]);
             rows.push(["RESUMEN DE GASTOS (MANUALES + PLANILLA)"]);
-            rows.push(["DESCRIPCI├ôN / CONCEPTO", "MONTO", "ORIGEN / RECIBI├ô", "FECHA"]);
+            rows.push(["DESCRIPCIÓN / CONCEPTO", "MONTO", "ORIGEN / RECIBIÓ", "FECHA"]);
 
             // Manual
             expensesData.forEach(exp => {
@@ -831,19 +831,7 @@ function App() {
                                 <h3>Listado de Alumnos ({filteredStudents.length})</h3>
                                 <div className="list-actions">
                                     {isLoaded && <button className="btn-secondary" onClick={() => exportToExcel('alumnos')}>Exportar Excel</button>}
-                                    {!isLoaded && (
-                                        <button className="btn-upload" onClick={() => fileInputRef.current.click()}>
-                                            Importar planilla
-                                        </button>
-                                    )}
                                 </div>
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileUpload}
-                                    /* Removed accept attribute to prevent files from being grayed out on Some Drive/Windows setups */
-                                    style={{ display: 'none' }}
-                                />
                             </div>
 
                             <div className="student-grid">
@@ -901,11 +889,14 @@ function App() {
                                         <div className="text-box">
                                             <h3>Bienvenido a VN Pilates</h3>
                                             <p>Aún no hay datos cargados en esta computadora.</p>
-                                            <span>Por favor, sube el archivo de gestión para comenzar.</span>
+                                            <button
+                                                className="btn-primary"
+                                                onClick={() => fileInputRef.current.click()}
+                                                style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginInline: 'auto' }}
+                                            >
+                                                <FileText size={18} /> Importar planilla
+                                            </button>
                                         </div>
-                                        <button className="btn-primary-large" onClick={() => fileInputRef.current.click()}>
-                                            Importar Planilla VN (.csv)
-                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1195,7 +1186,7 @@ function App() {
                                             <tr>
                                                 <th>CONCEPTO</th>
                                                 <th>MONTO</th>
-                                                <th>ORIGEN / RECIBI├ô</th>
+                                                <th>ORIGEN / RECIBIÓ</th>
                                                 <th>FECHA</th>
                                             </tr>
                                         </thead>
@@ -1255,7 +1246,7 @@ function App() {
 
                             <div className="danger-zone">
                                 <h3>Zona Peligrosa</h3>
-                                <p>Las siguientes acciones son permanentes y borrar├ín todos los datos guardados en este dispositivo.</p>
+                                <p>Las siguientes acciones son permanentes y borrarán todos los datos guardados en este dispositivo.</p>
                                 <button className="btn-danger" onClick={handleResetData}>
                                     Reiniciar Toda la Base de Datos
                                 </button>
@@ -1263,138 +1254,146 @@ function App() {
                         </div>
                     )
                     }
-                </section>
 
-                {showAddModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-card">
-                            <h3>Nuevo Alumno</h3>
-                            <div className="form-group">
-                                <label>Nombre Completo</label>
-                                <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
-                            </div>
-                            <div className="form-group-row">
-                                <div className="form-group">
-                                    <label>Clases por semana</label>
-                                    <input type="number" value={newStudent.classesPerWeek} onChange={e => setNewStudent({ ...newStudent, classesPerWeek: e.target.value })} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Fecha de Ingreso</label>
-                                    <input type="date" value={newStudent.entryDate} onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })} />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Teléfono (Opcional)</label>
-                                <input type="text" value={newStudent.phone} onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Ej: 1122334455" />
-                            </div>
-
-                            <div className="form-divider">Primer Pago (Opcional)</div>
-
-                            <div className="form-group-row">
-                                <div className="form-group">
-                                    <label>Monto Recibido</label>
-                                    <input type="text" value={newStudent.initialAmount} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="$0.00" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Recibió</label>
-                                    <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
-                                        <option value="Vanina">Vanina</option>
-                                        <option value="Nicki">Nicki</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="modal-footer">
-                                <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
-                                <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {showPaymentModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-card">
-                            <h3>Registrar Pago</h3>
-                            <div className="form-group">
-                                <label>Mes Correspondiente</label>
-                                <input
-                                    type="text"
-                                    value={newPayment.month}
-                                    onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
-                                    placeholder="Ej: Marzo 2024"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Monto</label>
-                                <div className="with-prefix">
-                                    <span>$</span>
-                                    <input
-                                        type="number"
-                                        value={newPayment.amount}
-                                        onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Recibió</label>
-                                <select
-                                    value={newPayment.receivedBy}
-                                    onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
-                                >
-                                    <option value="Vanina">Vanina</option>
-                                    <option value="Nicki">Nicki</option>
-                                </select>
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
-                                <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {
-                    showLinkModal && (
+                    {showAddModal && (
                         <div className="modal-overlay">
                             <div className="modal-card">
-                                <h3>Importar desde Link</h3>
-                                <div className="modal-help-box">
-                                    <p>Para que funcione, sigue estos 2 pasos en tu planilla:</p>
-                                    <ol className="help-steps">
-                                        <li>Haz clic en el botón <strong>Compartir</strong> (arriba a la derecha).</li>
-                                        <li>En "Acceso general", selecciona <strong>"Cualquier persona con el enlace"</strong>.</li>
-                                    </ol>
-                                    <span className="help-note">Esto permite que la aplicación lea los datos sin pedirte login cada vez.</span>
+                                <h3>Nuevo Alumno</h3>
+                                <div className="form-group">
+                                    <label>Nombre Completo</label>
+                                    <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
+                                </div>
+                                <div className="form-group-row">
+                                    <div className="form-group">
+                                        <label>Clases por semana</label>
+                                        <input type="number" value={newStudent.classesPerWeek} onChange={e => setNewStudent({ ...newStudent, classesPerWeek: e.target.value })} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Fecha de Ingreso</label>
+                                        <input type="date" value={newStudent.entryDate} onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })} />
+                                    </div>
                                 </div>
                                 <div className="form-group">
-                                    <label>Link de Google Sheets</label>
-                                    <input
-                                        type="text"
-                                        value={sheetLink}
-                                        onChange={e => setSheetLink(e.target.value)}
-                                        placeholder="https://docs.google.com/spreadsheets/d/..."
-                                    />
+                                    <label>Teléfono (Opcional)</label>
+                                    <input type="text" value={newStudent.phone} onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Ej: 1122334455" />
                                 </div>
+
+                                <div className="form-divider">Primer Pago (Opcional)</div>
+
+                                <div className="form-group-row">
+                                    <div className="form-group">
+                                        <label>Monto Recibido</label>
+                                        <input type="text" value={newStudent.initialAmount} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="$0.00" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Recibió</label>
+                                        <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
+                                            <option value="Vanina">Vanina</option>
+                                            <option value="Nicki">Nicki</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div className="modal-footer">
-                                    <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
-                                    <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
+                                    <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
+                                    <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
                                 </div>
                             </div>
                         </div>
-                    )
-                }
+                    )}
 
-                <div className="toast-container">
-                    {toasts.map(toast => (
-                        <div key={toast.id} className={`toast ${toast.type}`}>
-                            {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-                            <span>{toast.message}</span>
-                        </div>
-                    ))}
-                </div>
-            </main>
-        </div>
+                    {
+                        showPaymentModal && (
+                            <div className="modal-overlay">
+                                <div className="modal-card">
+                                    <h3>Registrar Pago</h3>
+                                    <div className="form-group">
+                                        <label>Mes Correspondiente</label>
+                                        <input
+                                            type="text"
+                                            value={newPayment.month}
+                                            onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
+                                            placeholder="Ej: Marzo 2024"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Monto</label>
+                                        <div className="with-prefix">
+                                            <span>$</span>
+                                            <input
+                                                type="number"
+                                                value={newPayment.amount}
+                                                onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Recibió</label>
+                                        <select
+                                            value={newPayment.receivedBy}
+                                            onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
+                                        >
+                                            <option value="Vanina">Vanina</option>
+                                            <option value="Nicki">Nicki</option>
+                                        </select>
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
+                                        <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    }
+                    {
+                        showLinkModal && (
+                            <div className="modal-overlay">
+                                <div className="modal-card">
+                                    <h3>Importar desde Link</h3>
+                                    <div className="modal-help-box">
+                                        <p>Para que funcione, sigue estos 2 pasos en tu planilla:</p>
+                                        <ol className="help-steps">
+                                            <li>Haz clic en el botón <strong>Compartir</strong> (arriba a la derecha).</li>
+                                            <li>En "Acceso general", selecciona <strong>"Cualquier persona con el enlace"</strong>.</li>
+                                        </ol>
+                                        <span className="help-note">Esto permite que la aplicación lea los datos sin pedirte login cada vez.</span>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Link de Google Sheets</label>
+                                        <input
+                                            type="text"
+                                            value={sheetLink}
+                                            onChange={e => setSheetLink(e.target.value)}
+                                            placeholder="https://docs.google.com/spreadsheets/d/..."
+                                        />
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
+                                        <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    <div className="toast-container">
+                        {toasts.map(toast => (
+                            <div key={toast.id} className={`toast ${toast.type}`}>
+                                {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+                                <span>{toast.message}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        style={{ display: 'none' }}
+                    />
+                </section >
+            </main >
+        </div >
     )
 }
 
