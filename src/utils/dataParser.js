@@ -15,6 +15,7 @@ export const parsePilatesCSV = (csvString) => {
                     // Row 2 contains months. Let's find all of them dynamically.
                     const monthRow = rows[1];
                     const headerMonths = [];
+                    const automaticExpenses = [];
 
                     // Month columns usually start at index 4 and repeat every 3 columns (Amount, ReceivedBy, Date)
                     // Let's also check if there is a 'TEL' column or similar
@@ -61,18 +62,28 @@ export const parsePilatesCSV = (csvString) => {
                             }
                         });
 
-                        // Strict placeholder filtering
                         const upperName = student.name.toUpperCase();
-                        if (student.name &&
-                            student.id !== "0" &&
-                            upperName !== "GRACIELA DOBAL" &&
-                            upperName !== "DANIEL VIEIRA" &&
-                            upperName !== "DANIEL VIEIRA" &&
-                            (student.classesPerWeek || student.history.length > 0)) {
+
+                        // Metadata filtering
+                        const isMetadata =
+                            upperName.includes("HORAS") ||
+                            upperName.includes("SUELDO") ||
+                            upperName.includes("ADELANTO") ||
+                            upperName === "VANI" ||
+                            upperName === "NICKI" ||
+                            upperName === "GRACIELA DOBAL" ||
+                            upperName === "DANIEL VIEIRA";
+
+                        if (isMetadata) continue;
+
+                        // Categorize: If has history but no classes/entry info, it's an Expense
+                        if (student.history.length > 0 && !student.classesPerWeek && !student.entryDate) {
+                            automaticExpenses.push(student);
+                        } else if (student.id !== "0" && (student.classesPerWeek || student.history.length > 0)) {
                             students.push(student);
                         }
                     }
-                    resolve(students);
+                    resolve({ students, automaticExpenses });
                 } catch (err) {
                     reject(err);
                 }

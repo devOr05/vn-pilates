@@ -37,6 +37,10 @@ function App() {
         return saved ? JSON.parse(saved) : [];
     });
     const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
+    const [fileExpenses, setFileExpenses] = useState(() => {
+        const saved = localStorage.getItem('vn_pilates_file_expenses');
+        return saved ? JSON.parse(saved) : [];
+    });
     const fileInputRef = useRef(null);
 
     // Persistence: Load on Mount
@@ -58,12 +62,10 @@ function App() {
                     s.id !== "0" &&
                     name !== "GRACIELA DOBAL" &&
                     name !== "DANIEL VIEIRA" &&
-                    !name.includes("HORAS TRABAJADAS") &&
-                    !name.includes("VALOR DE LA HORA") &&
+                    !name.includes("HORAS") &&
                     !name.includes("SUELDO") &&
                     !name.includes("ADELANTO") &&
-                    !name.includes("RESTO A FIN DE MES") &&
-                    // Also filter out rows that look like summary names
+                    !name.includes("RESTO") &&
                     !(name === "VANI" || name === "NICKI" || name === "AGOSTO")
                 );
             });
@@ -73,6 +75,10 @@ function App() {
             localStorage.setItem('vn_pilates_data', JSON.stringify(cleanStudents));
         }
     }, [students, isLoaded]);
+
+    useEffect(() => {
+        localStorage.setItem('vn_pilates_file_expenses', JSON.stringify(fileExpenses));
+    }, [fileExpenses]);
 
     // Save Salary & Expenses Data
     useEffect(() => {
@@ -100,11 +106,12 @@ function App() {
             if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla sea pública.');
 
             const text = await response.text();
-            const data = await parsePilatesCSV(text);
+            const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
 
-            if (!data || data.length === 0) throw new Error('No se encontraron datos válidos en el link.');
+            if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron datos válidos en el link.');
 
-            setStudents(data);
+            setStudents(parsedStudents);
+            setFileExpenses(automaticExpenses);
             setIsLoaded(true);
             setShowLinkModal(false);
             setSheetLink('');
@@ -140,12 +147,13 @@ function App() {
                 throw new Error('El archivo está vacío');
             }
 
-            const data = await parsePilatesCSV(text);
-            if (!data || data.length === 0) {
+            const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
+            if (!parsedStudents || parsedStudents.length === 0) {
                 throw new Error('No se encontraron alumnos válidos en el archivo');
             }
 
-            setStudents(data);
+            setStudents(parsedStudents);
+            setFileExpenses(automaticExpenses);
             setIsLoaded(true);
             alert('¡Datos cargados con éxito!');
         } catch (error) {
@@ -274,7 +282,16 @@ function App() {
 
         const activeStudents = students.filter(s => s.history.length > 0).length;
         const averagePerStudent = activeStudents ? totalMoney / activeStudents : 0;
-        const totalExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
+
+        const manualExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
+
+        // Sum automatic expenses for the active month (simplified: all automaticExpenses)
+        const autoExpensesValue = fileExpenses.reduce((acc, exp) => {
+            const amount = parseFloat(exp.history[0]?.amount.replace('$', '').replace(',', '')) || 0;
+            return acc + amount;
+        }, 0);
+
+        const totalExpenses = manualExpenses + autoExpensesValue;
 
         return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses };
     };
@@ -919,6 +936,38 @@ function App() {
                                                     </tr>
                                                 );
                                             })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="report-card honorarios-summary">
+                                <h3>Resumen de Gastos del Archivo - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
+                                <div className="table-wrapper">
+                                    <table className="full-data-table summary-table">
+                                        <thead>
+                                            <tr>
+                                                <th>CONCEPTO</th>
+                                                <th>MONTO</th>
+                                                <th>RECIBIÓ</th>
+                                                <th>FECHA</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {fileExpenses.length > 0 ? (
+                                                fileExpenses.map((exp, idx) => (
+                                                    <tr key={idx}>
+                                                        <td><strong>{exp.name}</strong></td>
+                                                        <td>{exp.history[0]?.amount}</td>
+                                                        <td>{exp.history[0]?.receivedBy}</td>
+                                                        <td>{exp.history[0]?.date}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="4" className="no-data">Sin gastos detectados en el archivo</td>
+                                                </tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
