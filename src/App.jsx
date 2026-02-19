@@ -160,7 +160,7 @@ function App() {
             const text = await response.text();
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
 
-            if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron alumnos v├ílidos en este archivo.');
+            if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron alumnos válidos en este archivo.');
 
             setStudents(parsedStudents);
             setFileExpenses(automaticExpenses);
@@ -188,7 +188,7 @@ function App() {
         const isCSV = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
 
         if (!isCSV && file.type !== "") {
-            if (!window.confirm(`El archivo "${file.name}" no parece un CSV est├índar. ¿Deseas intentar cargarlo de todas formas?`)) {
+            if (!window.confirm(`El archivo "${file.name}" no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?`)) {
                 return;
             }
         }
@@ -201,7 +201,7 @@ function App() {
 
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
             if (!parsedStudents || parsedStudents.length === 0) {
-                throw new Error('No se encontraron alumnos v├ílidos en el archivo');
+                throw new Error('No se encontraron alumnos válidos en el archivo');
             }
 
             setStudents(parsedStudents);
@@ -737,15 +737,6 @@ function App() {
                         </button>
                     </div>
 
-                    <div className="nav-group separator">
-                        <label className="nav-label">Importar</label>
-                        <button className="nav-item action" onClick={() => fileInputRef.current.click()}>
-                            <Save size={20} /> <span>Importar CSV</span>
-                        </button>
-                        <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
-                            <Plus size={20} /> <span>Importar por Link</span>
-                        </button>
-                    </div>
                 </nav>
             </aside>
 
