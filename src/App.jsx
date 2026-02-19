@@ -15,6 +15,15 @@ function App() {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [sheetLink, setSheetLink] = useState('');
     const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (message, type = 'success') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 3000);
+    };
 
     // Salary/Honorarios State
     const [salaryData, setSalaryData] = useState(() => {
@@ -136,10 +145,10 @@ function App() {
             setIsLoaded(true);
             setShowLinkModal(false);
             setSheetLink('');
-            alert('¡Datos sincronizados desde el link con éxito!');
+            showToast('¡Datos sincronizados desde el link con éxito!');
         } catch (error) {
             console.error('Error link import:', error);
-            alert(`Error de sincronización: ${error.message}\n\nSi el error persiste, asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo" o usa la opción "Importar CSV" descargando el archivo.`);
+            showToast(`Error de sincronización: ${error.message}\n\nSi el error persiste, asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo" o usa la opción "Importar CSV" descargando el archivo.`, 'error');
         }
     };
 
@@ -149,7 +158,7 @@ function App() {
 
         // Check if it's a Google Sheets link (not a real CSV)
         if (file.name.toLowerCase().endsWith('.gsheet')) {
-            alert('Error: Este archivo es un "Acceso directo de Google Sheets". Para cargarlo, debes abrir el archivo en Google Sheets y descargarlo como CSV (Archivo > Descargar > Valores separados por comas).');
+            showToast('Error: Este archivo es un "Acceso directo de Google Sheets". Para cargarlo, debes abrir el archivo en Google Sheets y descargarlo como CSV (Archivo > Descargar > Valores separados por comas).', 'error');
             return;
         }
 
@@ -157,7 +166,7 @@ function App() {
         const isCSV = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
 
         if (!isCSV && file.type !== "") {
-            if (!confirm(`El archivo "${file.name}" no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?`)) {
+            if (!window.confirm(`El archivo "${file.name}" no parece un CSV estándar. ¿Deseas intentar cargarlo de todas formas?`)) {
                 return;
             }
         }
@@ -176,10 +185,10 @@ function App() {
             setStudents(parsedStudents);
             setFileExpenses(automaticExpenses);
             setIsLoaded(true);
-            alert('¡Datos cargados con éxito!');
+            showToast('¡Datos cargados con éxito!');
         } catch (error) {
             console.error('Error al cargar archivo:', error);
-            alert(`Error al procesar el archivo: ${error.message}. Asegúrate de que sea el formato de exportación esperado.`);
+            showToast(`Error al procesar el archivo: ${error.message}. Asegúrate de que sea el formato de exportación esperado.`, 'error');
         }
     };
 
@@ -208,22 +217,24 @@ function App() {
             initialReceiver: 'Vanina'
         });
         setShowAddModal(false);
+        showToast("Alumno agregado correctamente");
     };
 
     const handleResetData = () => {
-        if (confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
+        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
             setStudents([]);
             localStorage.removeItem('vn_pilates_data');
             setIsLoaded(false);
             setCurrentView('alumnos');
-            alert('Base de datos borrada correctamente.');
+            showToast('Base de datos borrada correctamente.', 'error');
         }
     };
 
     const deleteStudent = (studentId, event) => {
         event.stopPropagation();
-        if (confirm('¿Borrar este alumno definitivamente?')) {
+        if (window.confirm('¿Estás seguro de eliminar este alumno?')) {
             setStudents(students.filter(s => s.id !== studentId));
+            showToast("Alumno eliminado", "error");
         }
     };
 
@@ -271,12 +282,13 @@ function App() {
         });
 
         setStudents(updatedStudents);
+        showToast("Pago agregado correctamente");
     };
 
     const saveStudentChanges = () => {
         if (!selectedStudent) return;
         setStudents(students.map(s => s.id === selectedStudent.id ? selectedStudent : s));
-        alert('Cambios guardados correctamente');
+        showToast("Cambios guardados con éxito");
     };
 
     const updateStudentField = (field, value) => {
@@ -894,7 +906,7 @@ function App() {
                                                 </div>
                                                 <button
                                                     className="btn-save-salary"
-                                                    onClick={() => alert(`Datos de ${person.toUpperCase()} guardados con éxito`)}
+                                                    onClick={() => showToast(`Datos de ${person.toUpperCase()} guardados con éxito`)}
                                                 >
                                                     Guardar Datos
                                                 </button>
@@ -928,6 +940,7 @@ function App() {
                                             if (!newExpense.description || !newExpense.amount) return;
                                             setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
                                             setNewExpense({ description: '', amount: '' });
+                                            showToast("Gasto agregado");
                                         }}>
                                             <Plus size={18} /> Agregar
                                         </button>
@@ -978,9 +991,9 @@ function App() {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td>{exp.description}</td>
-                                                                <td>$ {parseFloat(exp.amount).toLocaleString()}</td>
-                                                                <td className="actions-cell">
+                                                                <td data-label="Descripción">{exp.description}</td>
+                                                                <td data-label="Monto">$ {parseFloat(exp.amount).toLocaleString()}</td>
+                                                                <td className="actions-cell" data-label="Acción">
                                                                     <button className="btn-icon-secondary" onClick={() => {
                                                                         setEditingExpenseId(exp.id);
                                                                         setEditExpenseData({ description: exp.description, amount: exp.amount });
@@ -1027,12 +1040,12 @@ function App() {
                                         <tbody>
                                             {students.map(s => (
                                                 <tr key={s.id}>
-                                                    <td>{s.name}</td>
-                                                    <td>{s.entryDate}</td>
-                                                    <td>{s.classesPerWeek}</td>
-                                                    <td>{s.history[0]?.month || '-'}</td>
-                                                    <td>{s.history[0]?.amount || '-'}</td>
-                                                    <td>{s.history[0]?.receivedBy || '-'}</td>
+                                                    <td data-label="Nombre">{s.name}</td>
+                                                    <td data-label="Ingreso">{s.entryDate}</td>
+                                                    <td data-label="Clases">{s.classesPerWeek}</td>
+                                                    <td data-label="Último Mes">{s.history[0]?.month || '-'}</td>
+                                                    <td data-label="Monto">{s.history[0]?.amount || '-'}</td>
+                                                    <td data-label="Recibió">{s.history[0]?.receivedBy || '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1100,10 +1113,10 @@ function App() {
                                             {/* File Expenses */}
                                             {fileExpenses.map((exp, idx) => (
                                                 <tr key={`file-${idx}`}>
-                                                    <td><strong>{exp.name}</strong></td>
-                                                    <td className="amount-highlight">{exp.history[exp.history.length - 1]?.amount}</td>
-                                                    <td>{exp.history[exp.history.length - 1]?.receivedBy || 'Planilla'}</td>
-                                                    <td>{exp.history[exp.history.length - 1]?.date}</td>
+                                                    <td data-label="Concepto"><strong>{exp.name}</strong></td>
+                                                    <td data-label="Monto" className="amount-highlight">{exp.history[exp.history.length - 1]?.amount}</td>
+                                                    <td data-label="Recibió">{exp.history[exp.history.length - 1]?.receivedBy || 'Planilla'}</td>
+                                                    <td data-label="Fecha">{exp.history[exp.history.length - 1]?.date}</td>
                                                 </tr>
                                             ))}
 
@@ -1211,6 +1224,15 @@ function App() {
                         </div>
                     )
                 }
+
+                <div className="toast-container">
+                    {toasts.map(toast => (
+                        <div key={toast.id} className={`toast ${toast.type}`}>
+                            {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+                            <span>{toast.message}</span>
+                        </div>
+                    ))}
+                </div>
             </main>
         </div>
     )
