@@ -1195,6 +1195,109 @@ body {
     background: #94a3b8;
 }
 
+.report-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.report-stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    flex: 1;
+    min-width: 200px;
+}
+
+.report-stat-card.primary {
+    border-left: 5px solid var(--primary);
+}
+
+.report-stat-card.danger {
+    border-left: 5px solid #ef4444;
+}
+
+.report-stat-card.success {
+    border-left: 5px solid #10b981;
+}
+
+.report-stat-card .stat-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+}
+
+.report-stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+}
+
+.report-stat-card.danger .stat-value {
+    color: #ef4444;
+}
+
+.report-stat-card.success .stat-value {
+    color: #10b981;
+}
+
+.report-stat-card .stat-delta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.expense-form {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.expense-form input {
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.expense-form input[type="text"] {
+    flex: 2;
+}
+
+.expense-form input[type="number"] {
+    flex: 1;
+}
+
+.expense-table .total-row {
+    background: #f8fafc;
+    font-size: 1rem;
+}
+
+.expense-table .total-row td {
+    color: #ef4444;
+}
+
+.btn-icon-danger {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-danger:hover {
+    background: #fecaca;
+    transform: scale(1.1);
+}
+
 /* DESKTOP STYLES (Overrides) */
 @media (min-width: 768px) {
     .app-container {

@@ -31,8 +31,12 @@ function App() {
         entryDate: new Date().toISOString().split('T')[0],
         phone: '',
         initialAmount: '',
-        initialReceiver: 'Vanina'
     });
+    const [expensesData, setExpensesData] = useState(() => {
+        const saved = localStorage.getItem('vn_pilates_expenses');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
     const fileInputRef = useRef(null);
 
     // Persistence: Load on Mount
@@ -47,12 +51,22 @@ function App() {
     // Persistence: Save on Change
     useEffect(() => {
         if (isLoaded) {
-            // Definitively filter out ghost students before saving
-            const cleanStudents = students.filter(s =>
-                s.id !== "0" &&
-                s.name.toUpperCase() !== "GRACIELA DOBAL" &&
-                s.name.toUpperCase() !== "DANIEL VIEIRA"
-            );
+            // Definitively filter out ghost students and metadata rows before saving
+            const cleanStudents = students.filter(s => {
+                const name = s.name.toUpperCase();
+                return (
+                    s.id !== "0" &&
+                    name !== "GRACIELA DOBAL" &&
+                    name !== "DANIEL VIEIRA" &&
+                    !name.includes("HORAS TRABAJADAS") &&
+                    !name.includes("VALOR DE LA HORA") &&
+                    !name.includes("SUELDO") &&
+                    !name.includes("ADELANTO") &&
+                    !name.includes("RESTO A FIN DE MES") &&
+                    // Also filter out rows that look like summary names
+                    !(name === "VANI" || name === "NICKI" || name === "AGOSTO")
+                );
+            });
             if (cleanStudents.length !== students.length) {
                 setStudents(cleanStudents);
             }
@@ -60,10 +74,14 @@ function App() {
         }
     }, [students, isLoaded]);
 
-    // Save Salary Data
+    // Save Salary & Expenses Data
     useEffect(() => {
         localStorage.setItem('vn_pilates_salary', JSON.stringify(salaryData));
     }, [salaryData]);
+
+    useEffect(() => {
+        localStorage.setItem('vn_pilates_expenses', JSON.stringify(expensesData));
+    }, [expensesData]);
 
     const handleLinkImport = async () => {
         if (!sheetLink) return;
@@ -254,10 +272,9 @@ function App() {
             });
         });
 
-        const activeStudents = students.filter(s => s.history.length > 0).length;
-        const averagePerStudent = activeStudents ? totalMoney / activeStudents : 0;
+        const totalExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
 
-        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent };
+        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses };
     };
 
     const totals = calculateTotals();
@@ -425,8 +442,10 @@ function App() {
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
-                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha Médica">
+                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
                                 <FileText size={18} />
+                            </button>
+                            <button className="btn-secondary" onClick={() => alert('Módulo de Ficha Médica en desarrollo')}>
                                 <span>Ficha Médica</span>
                             </button>
                             <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
@@ -686,38 +705,20 @@ function App() {
                                 </div>
 
                                 <div className="report-stats">
-                                    <div className="stat-main">
-                                        <label>Recaudación Total</label>
-                                        <p className="amount-total">${totals.totalMoney.toLocaleString()}</p>
+                                    <div className="report-stat-card primary">
+                                        <div className="stat-label">Ingresos Totales</div>
+                                        <div className="stat-value">$ {totals.totalMoney.toLocaleString()}</div>
+                                        <div className="stat-delta">{totals.activeStudents} cuotas cobradas</div>
                                     </div>
-                                    <div className="stat-grid">
-                                        <div className="stat">
-                                            <label>Alumnos Totales</label>
-                                            <p>{students.length}</p>
-                                        </div>
-                                        <div className="stat">
-                                            <label>Con Pagos</label>
-                                            <p>{totals.activeStudents}</p>
-                                        </div>
-                                        <div className="stat">
-                                            <label>Clases Semanales</label>
-                                            <p>{totals.totalClasses}</p>
-                                        </div>
-                                        <div className="stat">
-                                            <label>Promedio c/u</label>
-                                            <p>${Math.round(totals.averagePerStudent).toLocaleString()}</p>
-                                        </div>
+                                    <div className="report-stat-card danger">
+                                        <div className="stat-label">Gastos Totales</div>
+                                        <div className="stat-value">$ {totals.totalExpenses.toLocaleString()}</div>
+                                        <div className="stat-delta">Costos de este mes</div>
                                     </div>
-
-                                    <div className="stat-receivers">
-                                        <div className="receiver-stat vanni">
-                                            <label>Vanina</label>
-                                            <p>${totals.vanniMoney.toLocaleString()}</p>
-                                        </div>
-                                        <div className="receiver-stat nicki">
-                                            <label>Nicki</label>
-                                            <p>${totals.nickiMoney.toLocaleString()}</p>
-                                        </div>
+                                    <div className="report-stat-card success">
+                                        <div className="stat-label">Ganancia Neta</div>
+                                        <div className="stat-value">$ {(totals.totalMoney - totals.totalExpenses).toLocaleString()}</div>
+                                        <div className="stat-delta">Balance final</div>
                                     </div>
                                 </div>
                             </div>
@@ -788,6 +789,69 @@ function App() {
                                             </div>
                                         );
                                     })}
+                                </div>
+                            </div>
+
+                            {/* Gastos Section */}
+                            <div className="report-card">
+                                <div className="card-header">
+                                    <div className="header-info">
+                                        <h3>Gestión de Gastos (Gastos Operativos)</h3>
+                                        <p className="report-subtitle">Registra aquí los egresos del mes</p>
+                                    </div>
+                                    <div className="expense-form">
+                                        <input
+                                            type="text"
+                                            placeholder="Descripción del gasto..."
+                                            value={newExpense.description}
+                                            onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="Monto $"
+                                            value={newExpense.amount}
+                                            onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
+                                        />
+                                        <button className="btn-add" onClick={() => {
+                                            if (!newExpense.description || !newExpense.amount) return;
+                                            setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
+                                            setNewExpense({ description: '', amount: '' });
+                                        }}>
+                                            <Plus size={18} /> Agregar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="expenses-list">
+                                    {expensesData.length > 0 ? (
+                                        <table className="full-data-table expense-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Descripción</th>
+                                                    <th>Monto</th>
+                                                    <th style={{ width: '50px' }}>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {expensesData.map(exp => (
+                                                    <tr key={exp.id}>
+                                                        <td>{exp.description}</td>
+                                                        <td>$ {parseFloat(exp.amount).toLocaleString()}</td>
+                                                        <td>
+                                                            <button className="btn-icon-danger" onClick={() => setExpensesData(expensesData.filter(e => e.id !== exp.id))}>
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                <tr className="total-row">
+                                                    <td><strong>TOTAL GASTOS</strong></td>
+                                                    <td colSpan="2"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <p className="no-data">No hay gastos registrados este mes.</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -871,8 +935,9 @@ function App() {
                                 </button>
                             </div>
                         </div>
-                    )}
-                </section>
+                    )
+                    }
+                </section >
 
                 {showAddModal && (
                     <div className="modal-overlay">
@@ -920,32 +985,34 @@ function App() {
                         </div>
                     </div>
                 )}
-                {showLinkModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-card">
-                            <h3>Importar desde Link</h3>
-                            <p className="modal-help">
-                                Pega aquí el link de tu planilla de Google Sheets.
-                                Asegúrate de que esté configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
-                            </p>
-                            <div className="form-group">
-                                <label>Link de Google Sheets</label>
-                                <input
-                                    type="text"
-                                    value={sheetLink}
-                                    onChange={e => setSheetLink(e.target.value)}
-                                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                                />
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
-                                <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
+                {
+                    showLinkModal && (
+                        <div className="modal-overlay">
+                            <div className="modal-card">
+                                <h3>Importar desde Link</h3>
+                                <p className="modal-help">
+                                    Pega aquí el link de tu planilla de Google Sheets.
+                                    Asegúrate de que esté configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
+                                </p>
+                                <div className="form-group">
+                                    <label>Link de Google Sheets</label>
+                                    <input
+                                        type="text"
+                                        value={sheetLink}
+                                        onChange={e => setSheetLink(e.target.value)}
+                                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                                    />
+                                </div>
+                                <div className="modal-footer">
+                                    <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
+                                    <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </main>
-        </div>
+                    )
+                }
+            </main >
+        </div >
     )
 }
 
