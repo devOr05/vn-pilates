@@ -596,15 +596,6 @@ function App() {
                             </button>
                         </div>
 
-                        <div className="nav-group separator">
-                            <label className="nav-label">Importar</label>
-                            <button className="nav-item action" onClick={() => fileInputRef.current.click()}>
-                                <Save size={20} /> <span>Importar CSV</span>
-                            </button>
-                            <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
-                                <Plus size={20} /> <span>Importar por Link</span>
-                            </button>
-                        </div>
                     </nav>
                 </aside>
 
@@ -704,6 +695,58 @@ function App() {
                         </div>
                     </section>
                 </main>
+
+                {showPaymentModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Registrar Pago</h3>
+                            <div className="form-group">
+                                <label>Mes Correspondiente</label>
+                                <input
+                                    type="text"
+                                    value={newPayment.month}
+                                    onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
+                                    placeholder="Ej: Marzo 2024"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Monto</label>
+                                <div className="with-prefix">
+                                    <span>$</span>
+                                    <input
+                                        type="number"
+                                        value={newPayment.amount}
+                                        onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Recibió</label>
+                                <select
+                                    value={newPayment.receivedBy}
+                                    onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
+                                >
+                                    <option value="Vanina">Vanina</option>
+                                    <option value="Nicki">Nicki</option>
+                                </select>
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="toast-container">
+                    {toasts.map(toast => (
+                        <div key={toast.id} className={`toast ${toast.type}`}>
+                            {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+                            <span>{toast.message}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
