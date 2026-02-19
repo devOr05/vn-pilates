@@ -11,8 +11,17 @@ function App() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoaded, setIsLoaded] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [currentView, setCurrentView] = useState('alumnos'); // alumnos | historiales | reportes
-    const [newStudent, setNewStudent] = useState({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0] });
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [sheetLink, setSheetLink] = useState('');
+    const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
+    const [newStudent, setNewStudent] = useState({
+        name: '',
+        classesPerWeek: '2',
+        entryDate: new Date().toISOString().split('T')[0],
+        phone: '',
+        initialAmount: '',
+        initialReceiver: 'Vanina'
+    });
     const fileInputRef = useRef(null);
 
     // Persistence: Load on Mount
@@ -27,9 +36,50 @@ function App() {
     // Persistence: Save on Change
     useEffect(() => {
         if (isLoaded) {
-            localStorage.setItem('vn_pilates_data', JSON.stringify(students));
+            // Definitively filter out ghost students before saving
+            const cleanStudents = students.filter(s =>
+                s.id !== "0" &&
+                s.name.toUpperCase() !== "GRACIELA DOBAL" &&
+                s.name.toUpperCase() !== "DANIEL VIEIRA"
+            );
+            if (cleanStudents.length !== students.length) {
+                setStudents(cleanStudents);
+            }
+            localStorage.setItem('vn_pilates_data', JSON.stringify(cleanStudents));
         }
     }, [students, isLoaded]);
+
+    const handleLinkImport = async () => {
+        if (!sheetLink) return;
+
+        let csvUrl = sheetLink;
+        // Transform Google Sheets link to export CSV link
+        if (csvUrl.includes('/edit')) {
+            csvUrl = csvUrl.split('/edit')[0] + '/export?format=csv';
+        } else if (!csvUrl.includes('/export')) {
+            alert('Por favor, asegúrate de que el link sea de una planilla de Google abierta (clic en Compartir > Cualquier persona con el vínculo puede ver).');
+            return;
+        }
+
+        try {
+            const response = await fetch(csvUrl);
+            if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla sea pública.');
+
+            const text = await response.text();
+            const data = await parsePilatesCSV(text);
+
+            if (!data || data.length === 0) throw new Error('No se encontraron datos válidos en el link.');
+
+            setStudents(data);
+            setIsLoaded(true);
+            setShowLinkModal(false);
+            setSheetLink('');
+            alert('¡Datos sincronizados desde el link con éxito!');
+        } catch (error) {
+            console.error('Error link import:', error);
+            alert(`Error: ${error.message}`);
+        }
+    };
 
     const handleFileUpload = async (event) => {
         const file = event.target.files[0];
@@ -77,11 +127,46 @@ function App() {
             name: newStudent.name,
             classesPerWeek: newStudent.classesPerWeek,
             entryDate: newStudent.entryDate,
-            history: []
+            phone: newStudent.phone,
+            history: newStudent.initialAmount ? [{
+                month: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
+                amount: newStudent.initialAmount.startsWith('$') ? newStudent.initialAmount : `$${newStudent.initialAmount}`,
+                receivedBy: newStudent.initialReceiver,
+                date: new Date().toLocaleDateString('es-ES')
+            }] : []
         };
         setStudents([student, ...students]);
-        setNewStudent({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0] });
+        setNewStudent({
+            name: '',
+            classesPerWeek: '2',
+            entryDate: new Date().toISOString().split('T')[0],
+            phone: '',
+            initialAmount: '',
+            initialReceiver: 'Vanina'
+        });
         setShowAddModal(false);
+    };
+
+    const handleResetData = () => {
+        if (confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
+            setStudents([]);
+            localStorage.removeItem('vn_pilates_data');
+            setIsLoaded(false);
+            setCurrentView('alumnos');
+            alert('Base de datos borrada correctamente.');
+        }
+    };
+
+    const deleteStudent = (studentId, event) => {
+        event.stopPropagation();
+        if (confirm('¿Borrar este alumno definitivamente?')) {
+            setStudents(students.filter(s => s.id !== studentId));
+        }
+    };
+
+    const hasPaidCurrentMonth = (student) => {
+        const currentMonth = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        return student.history.some(h => h.month.toLowerCase() === currentMonth.toLowerCase());
     };
 
     const addPayment = (studentId) => {
@@ -128,32 +213,60 @@ function App() {
         let totalClasses = 0;
         let vanniMoney = 0;
         let nickiMoney = 0;
+        let totalPayments = 0;
 
         students.forEach(s => {
             totalClasses += parseInt(s.classesPerWeek) || 0;
             s.history.forEach(h => {
                 const amount = parseFloat(h.amount.replace('$', '').replace(',', '')) || 0;
                 totalMoney += amount;
+                totalPayments++;
                 if (h.receivedBy?.toLowerCase().includes('vani')) vanniMoney += amount;
                 if (h.receivedBy?.toLowerCase().includes('nic')) nickiMoney += amount;
             });
         });
 
-        return { totalMoney, totalClasses, vanniMoney, nickiMoney };
+        const activeStudents = students.filter(s => s.history.length > 0).length;
+        const averagePerStudent = activeStudents ? totalMoney / activeStudents : 0;
+
+        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent };
     };
 
     const totals = calculateTotals();
 
     const exportToCSV = () => {
-        // Basic export: rebuild spreadsheet structure
-        const headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM", "HISTORIAL (MES:MONTO:RECIBE:FECHA)"];
-        const rows = students.map(s => [
-            s.id, s.name, s.entryDate, s.classesPerWeek,
-            s.history.map(h => `${h.month}|${h.amount}|${h.receivedBy}|${h.date}`).join(';')
-        ]);
+        // Build export in the original 19-column spreadsheet format
+        const headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM"];
 
-        const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        // Get all unique months to create columns
+        const months = [];
+        students.forEach(s => {
+            s.history.forEach(h => {
+                if (!months.includes(h.month)) months.push(h.month);
+            });
+        });
+
+        // Take last 5 months for the columns (like the original)
+        const activeMonths = months.slice(-5);
+        activeMonths.forEach(m => {
+            headers.push(m, "Recibió", "Fecha");
+        });
+
+        const rows = students.map(s => {
+            const row = [s.id, s.name, s.entryDate, s.classesPerWeek];
+            activeMonths.forEach(m => {
+                const payment = s.history.find(h => h.month === m);
+                if (payment) {
+                    row.push(payment.amount, payment.receivedBy, payment.date);
+                } else {
+                    row.push("", "", "");
+                }
+            });
+            return row;
+        });
+
+        const csvContent = [headers, ...rows].map(e => e.map(val => `"${val || ''}"`).join(",")).join("\n");
+        const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
@@ -308,6 +421,15 @@ function App() {
                                             onChange={(e) => updateStudentField('entryDate', e.target.value)}
                                         />
                                     </div>
+                                    <div className="badge-input">
+                                        <label>Tel:</label>
+                                        <input
+                                            type="text"
+                                            value={selectedStudent.phone || ''}
+                                            onChange={(e) => updateStudentField('phone', e.target.value)}
+                                            placeholder="Telefono..."
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -360,20 +482,42 @@ function App() {
             <aside className="sidebar">
                 <div className="logo-section">
                     <h1>VN Pilates</h1>
+                    <span className="beta-label">v1.0 Beta</span>
                 </div>
                 <nav className="nav-menu">
-                    <button
-                        className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
-                        onClick={() => setCurrentView('alumnos')}
-                    >
-                        <User size={22} /> <span>Alumnos</span>
-                    </button>
-                    <button
-                        className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
-                        onClick={() => setCurrentView('reportes')}
-                    >
-                        <FileText size={22} /> <span>Reportes</span>
-                    </button>
+                    <div className="nav-group">
+                        <button
+                            className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
+                            onClick={() => setCurrentView('alumnos')}
+                        >
+                            <User size={22} /> <span>Alumnos</span>
+                        </button>
+                        <button
+                            className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
+                            onClick={() => setCurrentView('reportes')}
+                        >
+                            <FileText size={22} /> <span>Reportes</span>
+                        </button>
+                    </div>
+
+                    <div className="nav-group separator">
+                        <label className="nav-label">Importar</label>
+                        <button className="nav-item action" onClick={() => fileInputRef.current.click()}>
+                            <Save size={20} /> <span>Importar CSV</span>
+                        </button>
+                        <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
+                            <Plus size={20} /> <span>Importar por Link</span>
+                        </button>
+                    </div>
+
+                    <div className="nav-group bottom">
+                        <button
+                            className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
+                            onClick={() => setCurrentView('ajustes')}
+                        >
+                            <Filter size={22} /> <span>Ajustes</span>
+                        </button>
+                    </div>
                 </nav>
             </aside>
 
@@ -430,6 +574,32 @@ function App() {
                                                 <h4>{student.name}</h4>
                                                 <p>{student.classesPerWeek} veces por semana</p>
                                             </div>
+                                            <div className="student-actions">
+                                                {hasPaidCurrentMonth(student) && (
+                                                    <div className="action-icon check" title="Pago al día">
+                                                        <Save size={18} />
+                                                    </div>
+                                                )}
+                                                {student.phone && (
+                                                    <a
+                                                        href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="action-icon whatsapp"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title="WhatsApp"
+                                                    >
+                                                        <History size={18} />
+                                                    </a>
+                                                )}
+                                                <button
+                                                    className="action-icon delete"
+                                                    onClick={(e) => deleteStudent(student.id, e)}
+                                                    title="Eliminar"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                             <ChevronRight size={18} className="arrow" />
                                         </div>
                                     ))
@@ -450,17 +620,20 @@ function App() {
                                 )}
                             </div>
                         </div>
-                    ) : (
+                    ) : currentView === 'reportes' ? (
                         <div className="reports-container">
-                            <div className="report-card">
+                            <div className="report-card main-summary">
                                 <div className="report-header">
-                                    <h3>Resumen de Gestión</h3>
+                                    <div className="report-title-group">
+                                        <h3>Resumen de Gestión Geral</h3>
+                                        <p className="report-subtitle">Datos consolidados de todos los alumnos</p>
+                                    </div>
                                     <div className="report-header-buttons">
                                         <button className="btn-secondary" onClick={exportToCSV}>
-                                            Excel
+                                            <Save size={16} /> Excel
                                         </button>
                                         <button className="btn-secondary" onClick={exportToPDF}>
-                                            PDF
+                                            <FileText size={16} /> PDF
                                         </button>
                                     </div>
                                 </div>
@@ -472,34 +645,80 @@ function App() {
                                     </div>
                                     <div className="stat-grid">
                                         <div className="stat">
-                                            <label>Total Alumnos</label>
+                                            <label>Alumnos Totales</label>
                                             <p>{students.length}</p>
                                         </div>
                                         <div className="stat">
-                                            <label>Clases por Sem.</label>
+                                            <label>Con Pagos</label>
+                                            <p>{totals.activeStudents}</p>
+                                        </div>
+                                        <div className="stat">
+                                            <label>Clases Semanales</label>
                                             <p>{totals.totalClasses}</p>
                                         </div>
                                         <div className="stat">
-                                            <label>Recibió Vanni</label>
-                                            <p className="amount-small">${totals.vanniMoney.toLocaleString()}</p>
-                                        </div>
-                                        <div className="stat">
-                                            <label>Recibió Nicki</label>
-                                            <p className="amount-small">${totals.nickiMoney.toLocaleString()}</p>
+                                            <label>Promedio c/u</label>
+                                            <p>${Math.round(totals.averagePerStudent).toLocaleString()}</p>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="report-extra">
-                                    <div className="extra-item">
-                                        <History size={16} />
-                                        <span>{students.reduce((acc, s) => acc + s.history.length, 0)} pagos procesados</span>
-                                    </div>
-                                    <div className="extra-item">
-                                        <Calendar size={16} />
-                                        <span>Última actualización: {new Date().toLocaleDateString()}</span>
+                                    <div className="stat-receivers">
+                                        <div className="receiver-stat vanni">
+                                            <label>Vanina</label>
+                                            <p>${totals.vanniMoney.toLocaleString()}</p>
+                                        </div>
+                                        <div className="receiver-stat nicki">
+                                            <label>Nicki</label>
+                                            <p>${totals.nickiMoney.toLocaleString()}</p>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="report-table-section">
+                                <div className="section-header">
+                                    <h4>Detalle Completo de Alumnos</h4>
+                                    <span>{students.length} registros cargados</span>
+                                </div>
+                                <div className="table-wrapper">
+                                    <table className="full-data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Nombre</th>
+                                                <th>Ingreso</th>
+                                                <th>Clases</th>
+                                                <th>Último Mes</th>
+                                                <th>Monto</th>
+                                                <th>Recibió</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {students.map(s => (
+                                                <tr key={s.id}>
+                                                    <td>{s.name}</td>
+                                                    <td>{s.entryDate}</td>
+                                                    <td>{s.classesPerWeek}</td>
+                                                    <td>{s.history[0]?.month || '-'}</td>
+                                                    <td>{s.history[0]?.amount || '-'}</td>
+                                                    <td>{s.history[0]?.receivedBy || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="settings-container">
+                            <h2>Ajustes</h2>
+                            <p>Configuración general de la aplicación Beta.</p>
+
+                            <div className="danger-zone">
+                                <h3>Zona Peligrosa</h3>
+                                <p>Las siguientes acciones son permanentes y borrarán todos los datos guardados en este dispositivo.</p>
+                                <button className="btn-danger" onClick={handleResetData}>
+                                    Reiniciar Toda la Base de Datos
+                                </button>
                             </div>
                         </div>
                     )}
@@ -513,17 +732,64 @@ function App() {
                                 <label>Nombre Completo</label>
                                 <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
                             </div>
-                            <div className="form-group">
-                                <label>Clases por semana</label>
-                                <input type="number" value={newStudent.classesPerWeek} onChange={e => setNewStudent({ ...newStudent, classesPerWeek: e.target.value })} />
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>Clases por semana</label>
+                                    <input type="number" value={newStudent.classesPerWeek} onChange={e => setNewStudent({ ...newStudent, classesPerWeek: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Fecha de Ingreso</label>
+                                    <input type="date" value={newStudent.entryDate} onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })} />
+                                </div>
                             </div>
                             <div className="form-group">
-                                <label>Fecha de Ingreso</label>
-                                <input type="date" value={newStudent.entryDate} onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })} />
+                                <label>Teléfono (Opcional)</label>
+                                <input type="text" value={newStudent.phone} onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Ej: 1122334455" />
                             </div>
+
+                            <div className="form-divider">Primer Pago (Opcional)</div>
+
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>Monto Recibido</label>
+                                    <input type="text" value={newStudent.initialAmount} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="$0.00" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Recibió</label>
+                                    <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
+                                        <option value="Vanina">Vanina</option>
+                                        <option value="Nicki">Nicki</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="modal-footer">
                                 <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
                                 <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {showLinkModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Importar desde Link</h3>
+                            <p className="modal-help">
+                                Pega aquí el link de tu planilla de Google Sheets.
+                                Asegúrate de que esté configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
+                            </p>
+                            <div className="form-group">
+                                <label>Link de Google Sheets</label>
+                                <input
+                                    type="text"
+                                    value={sheetLink}
+                                    onChange={e => setSheetLink(e.target.value)}
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                />
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
                             </div>
                         </div>
                     </div>

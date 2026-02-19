@@ -12,18 +12,29 @@ export const parsePilatesCSV = (csvString) => {
             complete: (results) => {
                 try {
                     const rows = results.data;
-                    // Row 2 contains months
-                    const headerMonths = [
-                        { name: rows[1][4], startIdx: 4 },
-                        { name: rows[1][7], startIdx: 7 },
-                        { name: rows[1][10], startIdx: 10 },
-                        { name: rows[1][13], startIdx: 13 },
-                        { name: rows[1][16], startIdx: 16 }
-                    ];
+                    // Row 2 contains months. Let's find all of them dynamically.
+                    const monthRow = rows[1];
+                    const headerMonths = [];
+
+                    // Month columns usually start at index 4 and repeat every 3 columns (Amount, ReceivedBy, Date)
+                    // Let's also check if there is a 'TEL' column or similar
+                    let phoneCol = -1;
+                    rows[0].forEach((colName, idx) => {
+                        if (colName && (colName.toUpperCase().includes('TEL') || colName.toUpperCase().includes('WHATS'))) {
+                            phoneCol = idx;
+                        }
+                    });
+
+                    for (let col = 4; col < monthRow.length; col += 3) {
+                        const monthName = monthRow[col];
+                        if (monthName && monthName.trim()) {
+                            headerMonths.push({ name: monthName.trim(), startIdx: col });
+                        }
+                    }
 
                     const students = [];
 
-                    // Students start from row 3
+                    // Students start from row 3 (index 2)
                     for (let i = 2; i < rows.length; i++) {
                         const row = rows[i];
                         const name = row[1];
@@ -34,27 +45,29 @@ export const parsePilatesCSV = (csvString) => {
                             name: name.trim(),
                             entryDate: row[2] || '',
                             classesPerWeek: row[3] || '',
+                            phone: phoneCol !== -1 ? (row[phoneCol] || '') : '',
                             history: []
                         };
 
                         // Map monthly data
                         headerMonths.forEach(m => {
-                            if (row[m.startIdx]) {
+                            if (row[m.startIdx] && row[m.startIdx].trim()) {
                                 student.history.push({
                                     month: m.name,
-                                    amount: row[m.startIdx],
-                                    receivedBy: row[m.startIdx + 1],
-                                    date: row[m.startIdx + 2]
+                                    amount: row[m.startIdx].trim(),
+                                    receivedBy: row[m.startIdx + 1] ? row[m.startIdx + 1].trim() : '',
+                                    date: row[m.startIdx + 2] ? row[m.startIdx + 2].trim() : ''
                                 });
                             }
                         });
 
-                        // Only add students who have name AND (classes per week OR history)
-                        // Also skip rows with ID "0" as they seem to be placeholders/headers
+                        // Strict placeholder filtering
+                        const upperName = student.name.toUpperCase();
                         if (student.name &&
                             student.id !== "0" &&
-                            student.name.toUpperCase() !== "GRACIELA DOBAL" &&
-                            student.name.toUpperCase() !== "DANIEL VIEIRA" &&
+                            upperName !== "GRACIELA DOBAL" &&
+                            upperName !== "DANIEL VIEIRA" &&
+                            upperName !== "DANIEL VIEIRA" &&
                             (student.classesPerWeek || student.history.length > 0)) {
                             students.push(student);
                         }
