@@ -16,9 +16,7 @@ import {
     AlertCircle,
     Settings,
     X,
-    Pencil,
-    DollarSign,
-    Clock
+    Pencil
 } from 'lucide-react';
 import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
@@ -138,7 +136,7 @@ function App() {
             if (idMatch && idMatch[1]) {
                 csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
             } else if (!csvUrl.includes('/export') && !csvUrl.includes('/pub')) {
-                showToast('Por favor, asegúrate de que el link sea de una planilla de Google Sheets v├ílida.', 'error');
+                showToast('Por favor, aseg├║rate de que el link sea de una planilla de Google Sheets v├ílida.', 'error');
                 return;
             }
         }
@@ -155,7 +153,7 @@ function App() {
                 response = await fetch(proxyUrl);
             }
 
-            if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo".');
+            if (!response.ok) throw new Error('No se pudo acceder al link. Aseg├║rate de que la planilla est├® compartida con "Cualquier persona con el v├¡nculo".');
 
             const text = await response.text();
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
@@ -167,10 +165,10 @@ function App() {
             setIsLoaded(true);
             setShowLinkModal(false);
             setSheetLink('');
-            showToast('¡Datos sincronizados desde el link con éxito!');
+            showToast('┬íDatos sincronizados desde el link con ├®xito!');
         } catch (error) {
             console.error('Error link import:', error);
-            showToast(`Error de sincronización: ${error.message}\n\nSi el error persiste, asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo" o usa la opción "Importar CSV" descargando el archivo.`, 'error');
+            showToast(`Error de sincronizaci├│n: ${error.message}\n\nSi el error persiste, aseg├║rate de que la planilla est├® compartida con "Cualquier persona con el v├¡nculo" o usa la opci├│n "Importar CSV" descargando el archivo.`, 'error');
         }
     };
 
@@ -188,7 +186,7 @@ function App() {
         const isCSV = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
 
         if (!isCSV && file.type !== "") {
-            if (!window.confirm(`El archivo "${file.name}" no parece un CSV est├índar. ¿Deseas intentar cargarlo de todas formas?`)) {
+            if (!window.confirm(`El archivo "${file.name}" no parece un CSV est├índar. ┬┐Deseas intentar cargarlo de todas formas?`)) {
                 return;
             }
         }
@@ -196,7 +194,7 @@ function App() {
         try {
             const text = await file.text();
             if (!text || text.trim().length === 0) {
-                throw new Error('El archivo est├í vacío');
+                throw new Error('El archivo est├í vac├¡o');
             }
 
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
@@ -207,10 +205,10 @@ function App() {
             setStudents(parsedStudents);
             setFileExpenses(automaticExpenses);
             setIsLoaded(true);
-            showToast('¡Datos cargados con éxito!');
+            showToast('┬íDatos cargados con ├®xito!');
         } catch (error) {
             console.error('Error al cargar archivo:', error);
-            showToast(`Error al procesar el archivo: ${error.message}. Asegúrate de que sea el formato de exportación esperado.`, 'error');
+            showToast(`Error al procesar el archivo: ${error.message}. Aseg├║rate de que sea el formato de exportaci├│n esperado.`, 'error');
         }
     };
 
@@ -243,7 +241,7 @@ function App() {
     };
 
     const handleResetData = () => {
-        if (window.confirm('ÔÜá´©Å ¿EST├üS SEGURO? Esta acción borrar├í TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
+        if (window.confirm('ÔÜá´©Å ┬┐EST├üS SEGURO? Esta acci├│n borrar├í TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
             setStudents([]);
             localStorage.removeItem('vn_pilates_data');
             setIsLoaded(false);
@@ -254,7 +252,7 @@ function App() {
 
     const deleteStudent = (studentId, event) => {
         event.stopPropagation();
-        if (window.confirm('¿Est├ís seguro de eliminar este alumno?')) {
+        if (window.confirm('┬┐Est├ís seguro de eliminar este alumno?')) {
             setStudents(students.filter(s => s.id !== studentId));
             showToast("Alumno eliminado", "error");
         }
@@ -317,7 +315,7 @@ function App() {
     const saveStudentChanges = () => {
         if (!selectedStudent) return;
         setStudents(students.map(s => s.id === selectedStudent.id ? selectedStudent : s));
-        showToast("Cambios guardados con éxito");
+        showToast("Cambios guardados con ├®xito");
     };
 
     const updateStudentField = (field, value) => {
@@ -372,7 +370,7 @@ function App() {
             const monthsSet = new Set();
             students.forEach(s => s.history.forEach(h => monthsSet.add(h.month)));
             const activeMonths = Array.from(monthsSet).slice(-5);
-            activeMonths.forEach(m => headers.push(m, "Recibió", "Fecha"));
+            activeMonths.forEach(m => headers.push(m, "Recibi├│", "Fecha"));
 
             rows = students.map(s => {
                 const row = [s.id, s.name, s.entryDate, s.classesPerWeek, s.phone || ''];
@@ -446,18 +444,18 @@ function App() {
 
         // Add Title
         doc.setFontSize(18);
-        doc.text("Resumen de Gestión VN Pilates", 14, 20);
+        doc.text("Resumen de Gesti├│n VN Pilates", 14, 20);
         doc.setFontSize(11);
-        doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Fecha de generaci├│n: ${new Date().toLocaleDateString()}`, 14, 30);
 
         // Financial Summary Table
         const financialHeaders = [["Concepto", "Valor"]];
         const financialData = [
-            ["Recaudación Total", `$${totals.totalMoney.toLocaleString()}`],
+            ["Recaudaci├│n Total", `$${totals.totalMoney.toLocaleString()}`],
             ["Total Alumnos", students.length.toString()],
             ["Total Clases por Sem.", totals.totalClasses.toString()],
-            ["Recibió Vanni", `$${totals.vanniMoney.toLocaleString()}`],
-            ["Recibió Nicki", `$${totals.nickiMoney.toLocaleString()}`]
+            ["Recibi├│ Vanni", `$${totals.vanniMoney.toLocaleString()}`],
+            ["Recibi├│ Nicki", `$${totals.nickiMoney.toLocaleString()}`]
         ];
 
         doc.autoTable({
@@ -515,7 +513,7 @@ function App() {
         doc.setFontSize(14);
         doc.text("Listado Detallado de Alumnos", 14, 20);
 
-        const studentHeaders = [["Nombre", "Clases/Sem", "Ingreso", "Último Pago"]];
+        const studentHeaders = [["Nombre", "Clases/Sem", "Ingreso", "├Ültimo Pago"]];
         const studentData = students.map(s => [
             s.name,
             s.classesPerWeek,
@@ -543,7 +541,7 @@ function App() {
         doc.text(`Clases por semana: ${student.classesPerWeek}`, 14, 30);
         doc.text(`Fecha de ingreso: ${student.entryDate}`, 14, 35);
 
-        const historyHeaders = [["Mes", "Monto", "Recibió", "Fecha de Pago"]];
+        const historyHeaders = [["Mes", "Monto", "Recibi├│", "Fecha de Pago"]];
         const historyData = student.history.map(h => [
             h.month, h.amount, h.receivedBy, h.date
         ]);
@@ -617,8 +615,8 @@ function App() {
                             <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
                                 <FileText size={18} />
                             </button>
-                            <button className="btn-secondary" onClick={() => showToast('Módulo de Ficha Médica en desarrollo', 'error')}>
-                                <span>Ficha Médica</span>
+                            <button className="btn-secondary" onClick={() => showToast('M├│dulo de Ficha M├®dica en desarrollo', 'error')}>
+                                <span>Ficha M├®dica</span>
                             </button>
                             <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
                         </div>
@@ -682,7 +680,7 @@ function App() {
                                                 </div>
                                                 <div className="detail">
                                                     <User size={16} />
-                                                    <span>Recibió: {item.receivedBy}</span>
+                                                    <span>Recibi├│: {item.receivedBy}</span>
                                                 </div>
                                                 {item.date && (
                                                     <div className="detail">
@@ -762,7 +760,7 @@ function App() {
                             />
                         </div>
                     ) : (
-                        <h2>Reportes de Gestión</h2>
+                        <h2>Reportes de Gesti├│n</h2>
                     )}
                     {currentView === 'alumnos' && (
                         <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
@@ -803,7 +801,7 @@ function App() {
                                                     <h4>{student.name}</h4>
                                                     <div className="mini-actions">
                                                         {hasPaidCurrentMonth(student) ? (
-                                                            <div className="mini-icon check" title="Pago al día">
+                                                            <div className="mini-icon check" title="Pago al d├¡a">
                                                                 <Check size={14} />
                                                             </div>
                                                         ) : (
@@ -845,8 +843,8 @@ function App() {
                                         </div>
                                         <div className="text-box">
                                             <h3>Bienvenido a VN Pilates</h3>
-                                            <p>Aún no hay datos cargados en esta computadora.</p>
-                                            <span>Por favor, sube el archivo de gestión para comenzar.</span>
+                                            <p>A├║n no hay datos cargados en esta computadora.</p>
+                                            <span>Por favor, sube el archivo de gesti├│n para comenzar.</span>
                                         </div>
                                         <button className="btn-primary-large" onClick={() => fileInputRef.current.click()}>
                                             Importar Planilla VN (.csv)
@@ -860,7 +858,7 @@ function App() {
                             <div className="report-card main-summary">
                                 <div className="report-header">
                                     <div className="report-title-group">
-                                        <h3>Resumen de Gestión Geral</h3>
+                                        <h3>Resumen de Gesti├│n Geral</h3>
                                         <p className="report-subtitle">Datos consolidados de todos los alumnos</p>
                                     </div>
                                     <div className="report-header-buttons">
@@ -951,7 +949,7 @@ function App() {
                                                 </div>
                                                 <button
                                                     className="btn-save-salary"
-                                                    onClick={() => showToast(`Datos de ${person.toUpperCase()} guardados con éxito`)}
+                                                    onClick={() => showToast(`Datos de ${person.toUpperCase()} guardados con ├®xito`)}
                                                 >
                                                     Guardar Datos
                                                 </button>
@@ -965,13 +963,13 @@ function App() {
                             <div className="report-card">
                                 <div className="card-header">
                                     <div className="header-info">
-                                        <h3>Gestión de Gastos (Gastos Operativos)</h3>
-                                        <p className="report-subtitle">Registra aquí los egresos del mes</p>
+                                        <h3>Gesti├│n de Gastos (Gastos Operativos)</h3>
+                                        <p className="report-subtitle">Registra aqu├¡ los egresos del mes</p>
                                     </div>
                                     <div className="expense-form">
                                         <input
                                             type="text"
-                                            placeholder="Descripción del gasto..."
+                                            placeholder="Descripci├│n del gasto..."
                                             value={newExpense.description}
                                             onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
                                         />
@@ -996,9 +994,9 @@ function App() {
                                         <table className="full-data-table expense-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Descripción</th>
+                                                    <th>Descripci├│n</th>
                                                     <th>Monto</th>
-                                                    <th style={{ width: '50px' }}>Acción</th>
+                                                    <th style={{ width: '50px' }}>Acci├│n</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1036,9 +1034,9 @@ function App() {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td data-label="Descripción">{exp.description}</td>
+                                                                <td data-label="Descripci├│n">{exp.description}</td>
                                                                 <td data-label="Monto">$ {parseFloat(exp.amount).toLocaleString()}</td>
-                                                                <td className="actions-cell" data-label="Acción">
+                                                                <td className="actions-cell" data-label="Acci├│n">
                                                                     <button className="btn-icon-secondary" onClick={() => {
                                                                         setEditingExpenseId(exp.id);
                                                                         setEditExpenseData({ description: exp.description, amount: exp.amount });
@@ -1077,9 +1075,9 @@ function App() {
                                                 <th>Nombre</th>
                                                 <th>Ingreso</th>
                                                 <th>Clases</th>
-                                                <th>Último Mes</th>
+                                                <th>├Ültimo Mes</th>
                                                 <th>Monto</th>
-                                                <th>Recibió</th>
+                                                <th>Recibi├│</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1088,9 +1086,9 @@ function App() {
                                                     <td data-label="Nombre">{s.name}</td>
                                                     <td data-label="Ingreso">{s.entryDate}</td>
                                                     <td data-label="Clases">{s.classesPerWeek}</td>
-                                                    <td data-label="Último Mes">{s.history[0]?.month || '-'}</td>
+                                                    <td data-label="├Ültimo Mes">{s.history[0]?.month || '-'}</td>
                                                     <td data-label="Monto">{s.history[0]?.amount || '-'}</td>
-                                                    <td data-label="Recibió">{s.history[0]?.receivedBy || '-'}</td>
+                                                    <td data-label="Recibi├│">{s.history[0]?.receivedBy || '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1160,7 +1158,7 @@ function App() {
                                                 <tr key={`file-${idx}`}>
                                                     <td data-label="Concepto"><strong>{exp.name}</strong></td>
                                                     <td data-label="Monto" className="amount-highlight">{exp.history[exp.history.length - 1]?.amount}</td>
-                                                    <td data-label="Recibió">{exp.history[exp.history.length - 1]?.receivedBy || 'Planilla'}</td>
+                                                    <td data-label="Recibi├│">{exp.history[exp.history.length - 1]?.receivedBy || 'Planilla'}</td>
                                                     <td data-label="Fecha">{exp.history[exp.history.length - 1]?.date}</td>
                                                 </tr>
                                             ))}
@@ -1183,10 +1181,10 @@ function App() {
                     ) : (
                         <div className="settings-container">
                             <h2>Ajustes</h2>
-                            <p>Configuración general de la aplicación Beta.</p>
+                            <p>Configuraci├│n general de la aplicaci├│n Beta.</p>
 
                             <div className="report-card" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                                <h3>Importación de Datos</h3>
+                                <h3>Importaci├│n de Datos</h3>
                                 <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
                                 <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
                                     <button className="btn-secondary" style={{ width: '100%' }} onClick={() => fileInputRef.current.click()}>
@@ -1229,7 +1227,7 @@ function App() {
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Teléfono (Opcional)</label>
+                                <label>Tel├®fono (Opcional)</label>
                                 <input type="text" value={newStudent.phone} onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Ej: 1122334455" />
                             </div>
 
@@ -1241,7 +1239,7 @@ function App() {
                                     <input type="text" value={newStudent.initialAmount} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="$0.00" />
                                 </div>
                                 <div className="form-group">
-                                    <label>Recibió</label>
+                                    <label>Recibi├│</label>
                                     <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
                                         <option value="Vanina">Vanina</option>
                                         <option value="Nicki">Nicki</option>
@@ -1283,7 +1281,7 @@ function App() {
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Recibió</label>
+                                <label>Recibi├│</label>
                                 <select
                                     value={newPayment.receivedBy}
                                     onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
@@ -1305,8 +1303,8 @@ function App() {
                             <div className="modal-card">
                                 <h3>Importar desde Link</h3>
                                 <p className="modal-help">
-                                    Pega aquí el link de tu planilla de Google Sheets.
-                                    Asegúrate de que esté configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
+                                    Pega aqu├¡ el link de tu planilla de Google Sheets.
+                                    Aseg├║rate de que est├® configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
                                 </p>
                                 <div className="form-group">
                                     <label>Link de Google Sheets</label>
