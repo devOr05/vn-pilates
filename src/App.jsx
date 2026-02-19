@@ -311,6 +311,7 @@ function App() {
         });
 
         setStudents(updatedStudents);
+        setShowPaymentModal(false);
         showToast("Pago agregado correctamente");
     };
 
