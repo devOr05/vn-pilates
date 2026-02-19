@@ -67,7 +67,8 @@ function App() {
                     !name.includes("ADELANTO") &&
                     !name.includes("RESTO") &&
                     !(name === "VANI" || name === "NICKI" || name === "AGOSTO") &&
-                    !name.includes("GASTO")
+                    !name.includes("GASTO") &&
+                    !s.id.toUpperCase().includes("GASTO")
                 );
             });
             if (cleanStudents.length !== students.length) {
@@ -303,10 +304,10 @@ function App() {
 
         const manualExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
 
-        // Sum automatic expenses (filter for most recent historical entry)
+        // Sum automatic expenses (filter for the MOST RECENT entry in the history array)
         const autoExpensesValue = fileExpenses.reduce((acc, exp) => {
-            const lastPayment = exp.history[0]; // Assuming newest is first
-            const amount = lastPayment ? (parseFloat(lastPayment.amount.replace('$', '').replace(',', '')) || 0) : 0;
+            const latestPayment = exp.history[exp.history.length - 1];
+            const amount = latestPayment ? (parseFloat(latestPayment.amount.replace('$', '').replace(',', '')) || 0) : 0;
             return acc + amount;
         }, 0);
 
@@ -977,9 +978,9 @@ function App() {
                                                 fileExpenses.map((exp, idx) => (
                                                     <tr key={idx}>
                                                         <td><strong>{exp.name}</strong></td>
-                                                        <td>{exp.history[0]?.amount}</td>
-                                                        <td>{exp.history[0]?.receivedBy}</td>
-                                                        <td>{exp.history[0]?.date}</td>
+                                                        <td>{exp.history[exp.history.length - 1]?.amount}</td>
+                                                        <td>{exp.history[exp.history.length - 1]?.receivedBy}</td>
+                                                        <td>{exp.history[exp.history.length - 1]?.date}</td>
                                                     </tr>
                                                 ))
                                             ) : (

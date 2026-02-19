@@ -35,15 +35,16 @@ export const parsePilatesCSV = (csvString) => {
 
                     const students = [];
 
-                    // Students start from row 3 (index 2)
                     for (let i = 2; i < rows.length; i++) {
                         const row = rows[i];
-                        const name = row[1];
-                        if (!name || name === 'TOTAL' || name.includes('los que se fueron')) continue;
+                        const id = row[0] ? row[0].toString().trim() : '';
+                        const name = row[1] ? row[1].toString().trim() : '';
+
+                        if ((!name && !id) || name === 'TOTAL' || name.includes('los que se fueron')) continue;
 
                         const student = {
-                            id: row[0] || `s-${i}`,
-                            name: name.trim(),
+                            id: id || `s-${i}`,
+                            name: name || id || 'Sin Nombre',
                             entryDate: row[2] || '',
                             classesPerWeek: row[3] || '',
                             phone: phoneCol !== -1 ? (row[phoneCol] || '') : '',
@@ -63,11 +64,12 @@ export const parsePilatesCSV = (csvString) => {
                         });
 
                         const upperName = student.name.toUpperCase();
+                        const upperId = id.toUpperCase();
 
                         // Metadata filtering (Explicitly EXCLUDE GASTOS from here to catch them below)
                         const isMetadata =
-                            (upperName.includes("HORAS") && !upperName.includes("GASTO")) ||
-                            (upperName.includes("SUELDO") && !upperName.includes("GASTO")) ||
+                            ((upperName.includes("HORAS") || upperId.includes("HORAS")) && !upperName.includes("GASTO")) ||
+                            ((upperName.includes("SUELDO") || upperId.includes("SUELDO")) && !upperName.includes("GASTO")) ||
                             upperName.includes("ADELANTO") ||
                             upperName === "VANI" ||
                             upperName === "NICKI" ||
@@ -76,9 +78,9 @@ export const parsePilatesCSV = (csvString) => {
 
                         if (isMetadata) continue;
 
-                        // Categorize: Strictly rely on GASTO keyword for automatic expenses to avoid catching students
+                        // Categorize: Strictly rely on GASTO keyword for automatic expenses
                         const hasHistory = student.history.length > 0;
-                        const isGastoRow = upperName.includes("GASTO");
+                        const isGastoRow = upperName.includes("GASTO") || upperId.includes("GASTO");
 
                         if (isGastoRow && hasHistory) {
                             automaticExpenses.push(student);
