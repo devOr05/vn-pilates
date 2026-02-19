@@ -356,13 +356,41 @@ function App() {
             });
             // Add Salary rows to report excel
             rows.push([]);
-            rows.push(["RESUMEN HONORARIOS"]);
-            rows.push(["PROFESOR", "HORAS", "VALOR HORA", "SUELDO BRUTO", "ADELANTOS", "RESTO"]);
+            rows.push(["RESUMEN DE HONORARIOS"]);
+            rows.push(["PROFESOR", "HORAS", "VALOR HORA", "SUELDO BRUTO", "ADELANTOS", "RESTO A PAGAR"]);
             ['vanni', 'nicki'].forEach(p => {
                 const d = salaryData[p];
                 const sueldo = d.hours * d.hourlyValue;
-                rows.push([p.toUpperCase(), d.hours, d.hourlyValue, sueldo, d.advances, sueldo - d.advances]);
+                rows.push([p.toUpperCase(), d.hours, `$ ${d.hourlyValue.toLocaleString()}`, `$ ${sueldo.toLocaleString()}`, `$ ${d.advances.toLocaleString()}`, `$ ${(sueldo - d.advances).toLocaleString()}`]);
             });
+
+            // Add Expenses section
+            rows.push([]);
+            rows.push(["RESUMEN DE GASTOS (MANUALES + PLANILLA)"]);
+            rows.push(["DESCRIPCIÓN / CONCEPTO", "MONTO", "ORIGEN / RECIBIÓ", "FECHA"]);
+
+            // Manual
+            expensesData.forEach(exp => {
+                rows.push([exp.description, `$ ${parseFloat(exp.amount).toLocaleString()}`, "Carga Manual", new Date().toLocaleDateString('es-ES')]);
+            });
+
+            // File
+            fileExpenses.forEach(exp => {
+                const latest = exp.history[exp.history.length - 1];
+                if (latest) {
+                    rows.push([exp.name, latest.amount, latest.receivedBy || 'Planilla', latest.date]);
+                }
+            });
+
+            rows.push(["TOTAL CONSOLIDADO DE GASTOS", `$ ${totals.totalExpenses.toLocaleString()}`]);
+
+            // Final Summary Balance
+            rows.push([]);
+            rows.push(["BALANCE FINAL"]);
+            rows.push(["INGRESOS TOTALES", `$ ${totals.totalMoney.toLocaleString()}`]);
+            rows.push(["GASTOS TOTALES", `$ ${totals.totalExpenses.toLocaleString()}`]);
+            rows.push(["GANANCIA NETA", `$ ${(totals.totalMoney - totals.totalExpenses).toLocaleString()}`]);
+
             filename = `Reporte-Finanzas-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
         }
 
@@ -399,9 +427,52 @@ function App() {
             headStyles: { fillStyle: '#6366f1' }
         });
 
-        // Students Table
+        // Salary Table
         doc.setFontSize(14);
-        doc.text("Listado de Alumnos", 14, doc.lastAutoTable.finalY + 15);
+        doc.text("Resumen de Honorarios", 14, doc.lastAutoTable.finalY + 15);
+        const salaryHeaders = [["Personal", "Horas", "Valor Hora", "Bruto", "Adelanto", "Neto"]];
+        const salaryRows = ['vanni', 'nicki'].map(p => {
+            const d = salaryData[p];
+            const sueldo = d.hours * d.hourlyValue;
+            return [p.toUpperCase(), `${d.hours}hs`, `$${d.hourlyValue.toLocaleString()}`, `$${sueldo.toLocaleString()}`, `$${d.advances.toLocaleString()}`, `$${(sueldo - d.advances).toLocaleString()}`];
+        });
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 20,
+            head: salaryHeaders,
+            body: salaryRows,
+            theme: 'grid',
+            headStyles: { fillStyle: '#10b981' }
+        });
+
+        // Expenses Table
+        doc.setFontSize(14);
+        doc.text("Resumen Mensual de Gastos", 14, doc.lastAutoTable.finalY + 15);
+        const expenseHeaders = [["Concepto", "Monto", "Origen", "Fecha"]];
+        const expenseRows = [];
+        expensesData.forEach(exp => expenseRows.push([exp.description, `$${parseFloat(exp.amount).toLocaleString()}`, "Manual", new Date().toLocaleDateString('es-ES')]));
+        fileExpenses.forEach(exp => {
+            const l = exp.history[exp.history.length - 1];
+            if (l) expenseRows.push([exp.name, l.amount, l.receivedBy || 'Planilla', l.date]);
+        });
+        expenseRows.push([{ content: 'TOTAL CONSOLIDADO', styles: { fontStyle: 'bold' } }, { content: `$${totals.totalExpenses.toLocaleString()}`, styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }, '', '']);
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 20,
+            head: expenseHeaders,
+            body: expenseRows,
+            theme: 'striped'
+        });
+
+        // Final Balance
+        doc.setFontSize(16);
+        const finalY = doc.lastAutoTable.finalY + 20;
+        doc.text(`GANANCIA NETA FINAL: $${(totals.totalMoney - totals.totalExpenses).toLocaleString()}`, 14, finalY);
+
+        // Students Table (Lower priority, separate page if needed or just below)
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.text("Listado Detallado de Alumnos", 14, 20);
 
         const studentHeaders = [["Nombre", "Clases/Sem", "Ingreso", "Último Pago"]];
         const studentData = students.map(s => [
@@ -412,7 +483,7 @@ function App() {
         ]);
 
         doc.autoTable({
-            startY: doc.lastAutoTable.finalY + 20,
+            startY: 30,
             head: studentHeaders,
             body: studentData,
             theme: 'grid'
