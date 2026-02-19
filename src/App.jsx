@@ -66,7 +66,8 @@ function App() {
                     !(name.includes("SUELDO") && !name.includes("GASTO")) &&
                     !name.includes("ADELANTO") &&
                     !name.includes("RESTO") &&
-                    !(name === "VANI" || name === "NICKI" || name === "AGOSTO")
+                    !(name === "VANI" || name === "NICKI" || name === "AGOSTO") &&
+                    !name.includes("GASTO")
                 );
             });
             if (cleanStudents.length !== students.length) {

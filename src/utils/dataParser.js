@@ -76,13 +76,13 @@ export const parsePilatesCSV = (csvString) => {
 
                         if (isMetadata) continue;
 
-                        // Categorize: If name contains GASTO or has history but no classes/entry info, it's an Expense
-                        const hasRecentHistory = student.history.length > 0;
+                        // Categorize: Strictly rely on GASTO keyword for automatic expenses to avoid catching students
+                        const hasHistory = student.history.length > 0;
                         const isGastoRow = upperName.includes("GASTO");
 
-                        if (hasRecentHistory && (isGastoRow || (!student.classesPerWeek && !student.entryDate))) {
+                        if (isGastoRow && hasHistory) {
                             automaticExpenses.push(student);
-                        } else if (student.id !== "0" && (student.classesPerWeek || hasRecentHistory)) {
+                        } else if (student.id !== "0" && (student.classesPerWeek || hasHistory)) {
                             students.push(student);
                         }
                     }
