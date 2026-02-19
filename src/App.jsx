@@ -211,9 +211,11 @@ function App() {
             setStudents(parsedStudents);
             setFileExpenses(automaticExpenses);
             setIsLoaded(true);
+            event.target.value = ''; // Reset input to allow re-upload of the same file
             showToast('¡Datos cargados con éxito!');
         } catch (error) {
             console.error('Error al cargar archivo:', error);
+            event.target.value = ''; // Also reset on error
             showToast(`Error al procesar el archivo: ${error.message}. Asegúrate de que sea el formato de exportación esperado.`, 'error');
         }
     };
@@ -247,12 +249,26 @@ function App() {
     };
 
     const handleResetData = () => {
-        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
+        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos, pagos, gastos y honorarios permanentemente.')) {
+            // Clear States
             setStudents([]);
+            setFileExpenses([]);
+            setExpensesData([]);
+            setSalaryData({
+                vanni: { hours: 0, hourlyValue: 0, advances: 0 },
+                nicki: { hours: 0, hourlyValue: 0, advances: 0 }
+            });
+
+            // Clear LocalStorage
             localStorage.removeItem('vn_pilates_data');
+            localStorage.removeItem('vn_pilates_file_expenses');
+            localStorage.removeItem('vn_pilates_expenses');
+            localStorage.removeItem('vn_pilates_salary');
+
             setIsLoaded(false);
             setCurrentView('alumnos');
-            showToast('Base de datos borrada correctamente.', 'error');
+            setSelectedStudent(null);
+            showToast('Base de datos reseteada por completo.', 'error');
         }
     };
 
