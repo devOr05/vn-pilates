@@ -95,13 +95,18 @@ function App() {
 
         let csvUrl = sheetLink;
 
-        // Robust Google Sheets link transformation using regex
-        const idMatch = sheetLink.match(/\/d\/([a-zA-Z0-9-_]+)/);
-        if (idMatch && idMatch[1]) {
-            csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
-        } else if (!csvUrl.includes('/export')) {
-            alert('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.');
-            return;
+        // Robust Google Sheets link transformation
+        if (sheetLink.includes('/pubhtml')) {
+            // Handle "Publish to the web" links
+            csvUrl = sheetLink.replace('/pubhtml', '/pub?output=csv');
+        } else {
+            const idMatch = sheetLink.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (idMatch && idMatch[1]) {
+                csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
+            } else if (!csvUrl.includes('/export') && !csvUrl.includes('/pub')) {
+                alert('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.');
+                return;
+            }
         }
 
         try {
