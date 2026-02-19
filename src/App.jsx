@@ -1,6 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
-import { Plus, Search, Filter, History, Trash2, Pencil, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft, Check, X, MessageCircle, AlertCircle } from 'lucide-react'
+import {
+    Plus,
+    User,
+    FileText,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    Trash2,
+    Save,
+    Search,
+    Filter,
+    MessageCircle,
+    Check,
+    AlertCircle,
+    Settings,
+    X,
+    Pencil
+} from 'lucide-react';
 import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
@@ -119,7 +136,7 @@ function App() {
             if (idMatch && idMatch[1]) {
                 csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
             } else if (!csvUrl.includes('/export') && !csvUrl.includes('/pub')) {
-                alert('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.');
+                showToast('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.', 'error');
                 return;
             }
         }
@@ -569,6 +586,12 @@ function App() {
                             >
                                 <FileText size={22} /> <span>Reportes</span>
                             </button>
+                            <button
+                                className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
+                                onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
+                            >
+                                <Settings size={22} /> <span>Ajustes</span>
+                            </button>
                         </div>
 
                         <div className="nav-group separator">
@@ -578,15 +601,6 @@ function App() {
                             </button>
                             <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
                                 <Plus size={20} /> <span>Importar por Link</span>
-                            </button>
-                        </div>
-
-                        <div className="nav-group bottom">
-                            <button
-                                className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
-                                onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
-                            >
-                                <Filter size={22} /> <span>Ajustes</span>
                             </button>
                         </div>
                     </nav>
@@ -601,7 +615,7 @@ function App() {
                             <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
                                 <FileText size={18} />
                             </button>
-                            <button className="btn-secondary" onClick={() => alert('Módulo de Ficha Médica en desarrollo')}>
+                            <button className="btn-secondary" onClick={() => showToast('Módulo de Ficha Médica en desarrollo', 'error')}>
                                 <span>Ficha Médica</span>
                             </button>
                             <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
@@ -713,6 +727,12 @@ function App() {
                         >
                             <FileText size={22} /> <span>Reportes</span>
                         </button>
+                        <button
+                            className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
+                            onClick={() => setCurrentView('ajustes')}
+                        >
+                            <Settings size={22} /> <span>Ajustes</span>
+                        </button>
                     </div>
 
                     <div className="nav-group separator">
@@ -722,15 +742,6 @@ function App() {
                         </button>
                         <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
                             <Plus size={20} /> <span>Importar por Link</span>
-                        </button>
-                    </div>
-
-                    <div className="nav-group bottom">
-                        <button
-                            className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
-                            onClick={() => setCurrentView('ajustes')}
-                        >
-                            <Filter size={22} /> <span>Ajustes</span>
                         </button>
                     </div>
                 </nav>
