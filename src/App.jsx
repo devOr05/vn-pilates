@@ -93,17 +93,19 @@ function App() {
         if (!sheetLink) return;
 
         let csvUrl = sheetLink;
-        // Transform Google Sheets link to export CSV link
-        if (csvUrl.includes('/edit')) {
-            csvUrl = csvUrl.split('/edit')[0] + '/export?format=csv';
+
+        // Robust Google Sheets link transformation using regex
+        const idMatch = sheetLink.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (idMatch && idMatch[1]) {
+            csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
         } else if (!csvUrl.includes('/export')) {
-            alert('Por favor, asegúrate de que el link sea de una planilla de Google abierta (clic en Compartir > Cualquier persona con el vínculo puede ver).');
+            alert('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.');
             return;
         }
 
         try {
             const response = await fetch(csvUrl);
-            if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla sea pública.');
+            if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo".');
 
             const text = await response.text();
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
@@ -118,7 +120,11 @@ function App() {
             alert('¡Datos sincronizados desde el link con éxito!');
         } catch (error) {
             console.error('Error link import:', error);
-            alert(`Error: ${error.message}`);
+            if (error.message.includes('fetch')) {
+                alert(`Error de conexión/CORS: ${error.message}\n\nTIP: Para evitar este error, ve a tu planilla > Archivo > Compartir > "Publicar en la Web".`);
+            } else {
+                alert(`Error: ${error.message}`);
+            }
         }
     };
 
