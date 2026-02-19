@@ -425,7 +425,6 @@ function App() {
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
-                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar ficha PDF"><FileText size={18} /></button>
                             <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
                         </div>
                     </header>
@@ -673,7 +672,7 @@ function App() {
                                         <p className="report-subtitle">Datos consolidados de todos los alumnos</p>
                                     </div>
                                     <div className="report-header-buttons">
-                                        <button className="btn-secondary" onClick={exportToCSV}>
+                                        <button className="btn-secondary" onClick={() => exportToExcel('reporte')}>
                                             <Save size={16} /> Excel
                                         </button>
                                         <button className="btn-secondary" onClick={exportToPDF}>
@@ -816,6 +815,40 @@ function App() {
                                                     <td>{s.history[0]?.receivedBy || '-'}</td>
                                                 </tr>
                                             ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="report-card honorarios-summary">
+                                <h3>Resumen de Sueldos - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
+                                <div className="table-wrapper">
+                                    <table className="full-data-table summary-table">
+                                        <thead>
+                                            <tr>
+                                                <th>PERSONAL</th>
+                                                <th>HORAS</th>
+                                                <th>VALOR HORA</th>
+                                                <th>SUELDO BRUTO</th>
+                                                <th>ADELANTO</th>
+                                                <th>RESTO A PAGAR</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {['vanni', 'nicki'].map(p => {
+                                                const d = salaryData[p];
+                                                const sueldo = d.hours * d.hourlyValue;
+                                                return (
+                                                    <tr key={p}>
+                                                        <td><strong>{p.toUpperCase()}</strong></td>
+                                                        <td>{d.hours}hs</td>
+                                                        <td>$ {d.hourlyValue.toLocaleString()}</td>
+                                                        <td>$ {sueldo.toLocaleString()}</td>
+                                                        <td>$ {d.advances.toLocaleString()}</td>
+                                                        <td className="amount-highlight">$ {(sueldo - d.advances).toLocaleString()}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
