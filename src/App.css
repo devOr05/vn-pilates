@@ -133,11 +133,15 @@ body {
     color: var(--text-muted);
     margin-bottom: 0.5rem;
     padding-left: 1rem;
+    display: none;
+    /* Hide labels in nav on mobile */
 }
 
 .nav-item.action {
     background: rgba(255, 255, 255, 0.05);
     color: #e2e8f0;
+    display: none;
+    /* Hide action buttons in nav on mobile */
 }
 
 .nav-item.action:hover {
@@ -829,6 +833,8 @@ body {
 .reports-container {
     padding: 1.25rem;
     width: 100%;
+    overflow-x: hidden;
+    /* Prevent horizontal scroll */
 }
 
 .report-card {
@@ -836,6 +842,9 @@ body {
     border: 1px solid var(--border);
     padding: 1.5rem;
     border-radius: 20px;
+    width: 100%;
+    /* Ensure card takes full width */
+    box-sizing: border-box;
 }
 
 .report-header {
@@ -879,9 +888,9 @@ body {
 
 .stat-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    /* 2 cols on mobile reports */
-    gap: 1.5rem;
+    grid-template-columns: 1fr;
+    /* Stack on mobile reports to avoid overflow */
+    gap: 1.25rem;
 }
 
 .stat {
@@ -936,7 +945,8 @@ body {
 
 .salary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: 1fr;
+    /* Single column on mobile */
     gap: 1.5rem;
     margin-top: 1.5rem;
 }
@@ -1254,6 +1264,9 @@ body {
     display: flex;
     gap: 0.75rem;
     align-items: center;
+    flex-wrap: wrap;
+    /* Allow wrapping on mobile */
+    width: 100%;
 }
 
 .expense-form input {
@@ -1304,6 +1317,11 @@ body {
         flex-direction: row;
         padding: 1.5rem;
         background: #cbd5e1;
+    }
+
+    .header-info {
+        width: 100%;
+        margin-bottom: 1rem;
     }
 
     .sidebar {
@@ -1404,6 +1422,15 @@ body {
 
     .stat-grid {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .nav-item.action,
+    .nav-label {
+        display: block;
+    }
+
+    .nav-group.separator {
+        display: flex;
     }
 }
 

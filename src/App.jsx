@@ -13,6 +13,9 @@ function App() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showLinkModal, setShowLinkModal] = useState(false);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentStudentId, setPaymentStudentId] = useState(null);
+    const [newPayment, setNewPayment] = useState({ month: '', amount: '', receivedBy: 'Vanina' });
     const [sheetLink, setSheetLink] = useState('');
     const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
     const [toasts, setToasts] = useState([]);
@@ -256,13 +259,20 @@ function App() {
     };
 
     const addPayment = (studentId) => {
-        const month = prompt('Ingrese el mes (ej: Enero 2024):');
-        if (!month) return;
-        const amount = prompt('Monto:');
-        const receivedBy = prompt('Recibió (Vanina/Nicki):') || 'Vanina';
+        setPaymentStudentId(studentId);
+        const now = new Date();
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const currentMonth = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+        setNewPayment({ month: currentMonth, amount: '', receivedBy: 'Vanina' });
+        setShowPaymentModal(true);
+    };
+
+    const confirmPayment = () => {
+        const { month, amount, receivedBy } = newPayment;
+        if (!month || !amount) return;
 
         const updatedStudents = students.map(s => {
-            if (s.id === studentId) {
+            if (s.id === paymentStudentId) {
                 const updatedStudent = {
                     ...s,
                     history: [{
@@ -273,7 +283,7 @@ function App() {
                     }, ...s.history]
                 };
                 // Update selected student if viewing matches
-                if (selectedStudent && selectedStudent.id === studentId) {
+                if (selectedStudent && selectedStudent.id === paymentStudentId) {
                     setSelectedStudent(updatedStudent);
                 }
                 return updatedStudent;
@@ -1140,6 +1150,19 @@ function App() {
                             <h2>Ajustes</h2>
                             <p>Configuración general de la aplicación Beta.</p>
 
+                            <div className="report-card" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                                <h3>Importación de Datos</h3>
+                                <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
+                                <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <button className="btn-secondary" style={{ width: '100%' }} onClick={() => fileInputRef.current.click()}>
+                                        <Save size={20} /> <span style={{ marginLeft: '0.5rem' }}>Importar CSV Local</span>
+                                    </button>
+                                    <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setShowLinkModal(true)}>
+                                        <Plus size={20} /> <span style={{ marginLeft: '0.5rem' }}>Sincronizar por Link</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="danger-zone">
                                 <h3>Zona Peligrosa</h3>
                                 <p>Las siguientes acciones son permanentes y borrarán todos los datos guardados en este dispositivo.</p>
@@ -1194,6 +1217,49 @@ function App() {
                             <div className="modal-footer">
                                 <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
                                 <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showPaymentModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Registrar Pago</h3>
+                            <div className="form-group">
+                                <label>Mes Correspondiente</label>
+                                <input
+                                    type="text"
+                                    value={newPayment.month}
+                                    onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
+                                    placeholder="Ej: Marzo 2024"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Monto</label>
+                                <div className="with-prefix">
+                                    <span>$</span>
+                                    <input
+                                        type="number"
+                                        value={newPayment.amount}
+                                        onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Recibió</label>
+                                <select
+                                    value={newPayment.receivedBy}
+                                    onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
+                                >
+                                    <option value="Vanina">Vanina</option>
+                                    <option value="Nicki">Nicki</option>
+                                </select>
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
                             </div>
                         </div>
                     </div>
