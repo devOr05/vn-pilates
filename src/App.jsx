@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { Plus, Search, Filter, History, Trash2, Pencil, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft, Check, X, MessageCircle, AlertCircle } from 'lucide-react'
-import { parsePilatesCSV } from './utils/dataParser'
+import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -293,7 +293,7 @@ function App() {
         students.forEach(s => {
             totalClasses += parseInt(s.classesPerWeek) || 0;
             s.history.forEach(h => {
-                const amount = parseFloat(h.amount.replace('$', '').replace(',', '')) || 0;
+                const amount = cleanMoneyString(h.amount);
                 totalMoney += amount;
                 totalPayments++;
                 if (h.receivedBy?.toLowerCase().includes('vani')) vanniMoney += amount;
@@ -309,7 +309,7 @@ function App() {
         // Sum automatic expenses (filter for the MOST RECENT entry in the history array)
         const autoExpensesValue = fileExpenses.reduce((acc, exp) => {
             const latestPayment = exp.history[exp.history.length - 1];
-            const amount = latestPayment ? (parseFloat(latestPayment.amount.replace('$', '').replace(',', '')) || 0) : 0;
+            const amount = latestPayment ? cleanMoneyString(latestPayment.amount) : 0;
             return acc + amount;
         }, 0);
 
