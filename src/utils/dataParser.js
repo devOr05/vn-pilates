@@ -53,12 +53,10 @@ export const parsePilatesCSV = (csvString) => {
                     const rows = results.data;
                     if (rows.length < 2) return resolve({ students: [], automaticExpenses: [] });
 
-                    // Row 2 (index 1) contains months. Let's find them all by looking for labels.
+                    // Row 2 (index 1) contains months.
                     const monthRow = rows[1];
                     const headerMonths = [];
 
-                    // Standard columns: ID (0), Name (1), Entry (2), Class (3)
-                    // We scan every column from 1 to find potential month starts
                     for (let col = 1; col < monthRow.length; col++) {
                         const val = monthRow[col] ? monthRow[col].toString().trim() : '';
                         if (val &&
@@ -67,17 +65,11 @@ export const parsePilatesCSV = (csvString) => {
                             !val.toUpperCase().includes('CLASE') &&
                             !val.toUpperCase().includes('TEL')) {
 
-                            // This is likely a month header marker (e.g. "febrero")
-                            // Based on spreadsheet structure, data usually starts in the current or NEXT column
-                            // We designate this column as the potential month start
                             headerMonths.push({ name: val, startIdx: col + 1 });
-
-                            // Skip ahead to avoid picking up sub-headers or components of the same block
                             col += 2;
                         }
                     }
 
-                    // Look for phone column
                     let phoneCol = -1;
                     rows[0].forEach((colName, idx) => {
                         if (colName && (colName.toUpperCase().includes('TEL') || colName.toUpperCase().includes('WHATS'))) {
@@ -88,24 +80,42 @@ export const parsePilatesCSV = (csvString) => {
                     const students = [];
                     const automaticExpenses = [];
 
-                    // Data starts from row 3 (index 2)
                     for (let i = 2; i < rows.length; i++) {
                         const row = rows[i];
+
+                        // Check if row contains "GASTO" anywhere (CRITICAL FIX)
+                        let rowHasGastoKeyword = false;
+                        let gastoNameParts = [];
+
+                        row.forEach((cell, idx) => {
+                            const cellStr = cell ? cell.toString().toUpperCase() : '';
+                            if (cellStr.includes('GASTO')) {
+                                rowHasGastoKeyword = true;
+                            }
+                            // Capture words near the start of the row or near GASTO for the name
+                            if (idx < 6 && cell && typeof cell === 'string' && cell.length > 2) {
+                                if (!cell.includes('$') && !cell.match(/[0-9]{2,}/)) {
+                                    gastoNameParts.push(cell.trim());
+                                }
+                            }
+                        });
+
                         const id = row[0] ? row[0].toString().trim() : '';
                         const name = row[1] ? row[1].toString().trim() : '';
 
-                        if ((!name && !id) || name === 'TOTAL' || name.includes('los que se fueron')) continue;
+                        // If it's not a gasto row and lacks name/id, skip
+                        if (!rowHasGastoKeyword && (!name && !id)) continue;
+                        if (name === 'TOTAL' || name.includes('los que se fueron')) continue;
 
                         const student = {
                             id: id || `s-${i}`,
-                            name: name || id || 'Sin Nombre',
+                            name: name || (rowHasGastoKeyword ? gastoNameParts.join(' ') : id) || 'Sin Nombre',
                             entryDate: row[2] || '',
                             classesPerWeek: row[3] || '',
                             phone: phoneCol !== -1 ? (row[phoneCol] || '') : '',
                             history: []
                         };
 
-                        // Map monthly data using headerMonths
                         headerMonths.forEach(m => {
                             if (row[m.startIdx] && row[m.startIdx].trim()) {
                                 student.history.push({
@@ -133,7 +143,7 @@ export const parsePilatesCSV = (csvString) => {
                         if (isMetadata) continue;
 
                         const hasHistory = student.history.length > 0;
-                        const isGastoRow = upperName.includes("GASTO") || upperId.includes("GASTO");
+                        const isGastoRow = rowHasGastoKeyword || upperName.includes("GASTO") || upperId.includes("GASTO");
 
                         if (isGastoRow && hasHistory) {
                             automaticExpenses.push(student);
