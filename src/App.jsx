@@ -553,20 +553,42 @@ function App() {
                 <aside className="sidebar">
                     <div className="logo-section">
                         <h1>VN Pilates</h1>
+                        <span className="beta-label">v1.0 Beta</span>
                     </div>
                     <nav className="nav-menu">
-                        <button
-                            className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
-                            onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
-                        >
-                            <User size={20} /> <span>Alumnos</span>
-                        </button>
-                        <button
-                            className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
-                            onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
-                        >
-                            <FileText size={20} /> <span>Reportes</span>
-                        </button>
+                        <div className="nav-group">
+                            <button
+                                className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
+                                onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
+                            >
+                                <User size={22} /> <span>Alumnos</span>
+                            </button>
+                            <button
+                                className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
+                                onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
+                            >
+                                <FileText size={22} /> <span>Reportes</span>
+                            </button>
+                        </div>
+
+                        <div className="nav-group separator">
+                            <label className="nav-label">Importar</label>
+                            <button className="nav-item action" onClick={() => fileInputRef.current.click()}>
+                                <Save size={20} /> <span>Importar CSV</span>
+                            </button>
+                            <button className="nav-item action" onClick={() => setShowLinkModal(true)}>
+                                <Plus size={20} /> <span>Importar por Link</span>
+                            </button>
+                        </div>
+
+                        <div className="nav-group bottom">
+                            <button
+                                className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
+                                onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
+                            >
+                                <Filter size={22} /> <span>Ajustes</span>
+                            </button>
+                        </div>
                     </nav>
                 </aside>
 

@@ -71,10 +71,10 @@ body {
 .nav-menu {
     display: flex;
     flex-direction: row;
-    /* Horizontal on mobile */
     width: 100%;
-    justify-content: space-around;
-    gap: 0.5rem;
+    justify-content: space-evenly;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 .nav-item {
@@ -110,10 +110,18 @@ body {
 }
 
 .nav-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    width: 100%;
+    display: contents;
+    /* Let children be direct flex items of nav-menu on mobile */
+}
+
+/* In Desktop, we redefine it */
+@media (min-width: 768px) {
+    .nav-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
 }
 
 .nav-group.separator {
@@ -126,22 +134,11 @@ body {
     margin-top: auto;
 }
 
-.nav-label {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05rem;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-    padding-left: 1rem;
-    display: none;
-    /* Hide labels in nav on mobile */
-}
-
-.nav-item.action {
-    background: rgba(255, 255, 255, 0.05);
-    color: #e2e8f0;
-    display: none;
-    /* Hide action buttons in nav on mobile */
+.nav-label,
+.nav-item.action,
+.nav-group.separator {
+    display: none !important;
+    /* Force hide on mobile bottom nav */
 }
 
 .nav-item.action:hover {
@@ -831,20 +828,20 @@ body {
 }
 
 .reports-container {
-    padding: 1.25rem;
+    padding: 1rem;
     width: 100%;
     overflow-x: hidden;
-    /* Prevent horizontal scroll */
+    box-sizing: border-box;
 }
 
 .report-card {
     background: white;
     border: 1px solid var(--border);
-    padding: 1.5rem;
+    padding: 1.25rem;
     border-radius: 20px;
     width: 100%;
-    /* Ensure card takes full width */
     box-sizing: border-box;
+    margin-bottom: 1.5rem;
 }
 
 .report-header {
@@ -1424,13 +1421,25 @@ body {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 
+    .nav-label,
     .nav-item.action,
-    .nav-label {
-        display: block;
+    .nav-group.separator {
+        display: block !important;
     }
 
     .nav-group.separator {
+        display: flex !important;
+        flex-direction: column;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-group {
         display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
     }
 }
 
