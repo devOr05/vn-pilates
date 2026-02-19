@@ -138,7 +138,7 @@ function App() {
             if (idMatch && idMatch[1]) {
                 csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
             } else if (!csvUrl.includes('/export') && !csvUrl.includes('/pub')) {
-                showToast('Por favor, asegúrate de que el link sea de una planilla de Google Sheets v├ílida.', 'error');
+                showToast('Por favor, asegúrate de que el link sea de una planilla de Google Sheets válida.', 'error');
                 return;
             }
         }
@@ -243,7 +243,7 @@ function App() {
     };
 
     const handleResetData = () => {
-        if (window.confirm('ÔÜá´©Å ¿EST├üS SEGURO? Esta acción borrar├í TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
+        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos y pagos permanentemente. No se puede deshacer.')) {
             setStudents([]);
             localStorage.removeItem('vn_pilates_data');
             setIsLoaded(false);
