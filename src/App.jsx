@@ -272,6 +272,8 @@ function App() {
             });
         });
 
+        const activeStudents = students.filter(s => s.history.length > 0).length;
+        const averagePerStudent = activeStudents ? totalMoney / activeStudents : 0;
         const totalExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
 
         return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses };
@@ -937,7 +939,7 @@ function App() {
                         </div>
                     )
                     }
-                </section >
+                </section>
 
                 {showAddModal && (
                     <div className="modal-overlay">
@@ -1011,8 +1013,8 @@ function App() {
                         </div>
                     )
                 }
-            </main >
-        </div >
+            </main>
+        </div>
     )
 }
 
