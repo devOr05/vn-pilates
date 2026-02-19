@@ -993,6 +993,10 @@ body {
     border: 1px solid var(--border);
 }
 
+.with-prefix.no-symbol {
+    padding: 0 1rem;
+}
+
 .with-prefix input {
     background: transparent;
     border: none;
@@ -1024,6 +1028,43 @@ body {
     padding-top: 0.5rem;
     margin-top: 0.5rem;
     border-top: 1px dashed var(--border);
+}
+
+.expense-summary-mini {
+    display: flex;
+    gap: 2rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    border: 1px dashed var(--border);
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.summary-item span:first-child {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.summary-item .value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.summary-item.highlight .value {
+    color: var(--accent);
+}
+
+.summary-item.total .value {
+    color: #ef4444;
 }
 
 .btn-save-salary {

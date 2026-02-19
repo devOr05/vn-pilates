@@ -890,9 +890,9 @@ function App() {
                                             <h3>Bienvenido a VN Pilates</h3>
                                             <p>Aún no hay datos cargados en esta computadora.</p>
                                             <button
-                                                className="btn-primary"
+                                                className="btn-add"
                                                 onClick={() => fileInputRef.current.click()}
-                                                style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginInline: 'auto' }}
+                                                style={{ marginTop: '1.5rem', marginInline: 'auto' }}
                                             >
                                                 <FileText size={18} /> Importar planilla
                                             </button>
@@ -956,11 +956,14 @@ function App() {
                                                 <div className="salary-inputs">
                                                     <div className="input-group">
                                                         <label>Horas Trabajadas</label>
-                                                        <input
-                                                            type="number"
-                                                            value={data.hours}
-                                                            onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(e.target.value) || 0 } })}
-                                                        />
+                                                        <div className="with-prefix no-symbol">
+                                                            <input
+                                                                type="number"
+                                                                value={data.hours}
+                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(e.target.value) || 0 } })}
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div className="input-group">
                                                         <label>Valor de la Hora</label>
@@ -1009,33 +1012,50 @@ function App() {
 
                             {/* Gastos Section */}
                             <div className="report-card">
-                                <div className="card-header">
-                                    <div className="header-info">
-                                        <h3>Gestión de Gastos (Gastos Operativos)</h3>
-                                        <p className="report-subtitle">Registra aquí los egresos del mes</p>
+                                <div className="section-header">
+                                    <h3>Gestión de Gastos (Gastos Operativos)</h3>
+                                    <p className="report-subtitle">Registra aquí los egresos del mes</p>
+                                </div>
+
+                                <div className="expense-summary-mini">
+                                    <div className="summary-item">
+                                        <span>Manuales:</span>
+                                        <span className="value">$ {expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0).toLocaleString()}</span>
                                     </div>
-                                    <div className="expense-form">
-                                        <input
-                                            type="text"
-                                            placeholder="Descripción del gasto..."
-                                            value={newExpense.description}
-                                            onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
-                                        />
-                                        <input
-                                            type="number"
-                                            placeholder="Monto $"
-                                            value={newExpense.amount}
-                                            onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
-                                        />
-                                        <button className="btn-add" onClick={() => {
-                                            if (!newExpense.description || !newExpense.amount) return;
-                                            setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
-                                            setNewExpense({ description: '', amount: '' });
-                                            showToast("Gasto agregado");
-                                        }}>
-                                            <Plus size={18} /> Agregar
-                                        </button>
+                                    <div className="summary-item highlight">
+                                        <span>De Planilla:</span>
+                                        <span className="value">$ {fileExpenses.reduce((acc, exp) => {
+                                            const latest = exp.history[exp.history.length - 1];
+                                            return acc + (latest ? cleanMoneyString(latest.amount) : 0);
+                                        }, 0).toLocaleString()}</span>
                                     </div>
+                                    <div className="summary-item total">
+                                        <span>Total Consolidado:</span>
+                                        <span className="value">$ {totals.totalExpenses.toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                <div className="expense-form">
+                                    <input
+                                        type="text"
+                                        placeholder="Descripción del gasto..."
+                                        value={newExpense.description}
+                                        onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="Monto $"
+                                        value={newExpense.amount}
+                                        onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
+                                    />
+                                    <button className="btn-add" onClick={() => {
+                                        if (!newExpense.description || !newExpense.amount) return;
+                                        setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
+                                        setNewExpense({ description: '', amount: '' });
+                                        showToast("Gasto agregado");
+                                    }}>
+                                        <Plus size={18} /> Agregar
+                                    </button>
                                 </div>
                                 <div className="expenses-list">
                                     {expensesData.length > 0 ? (
@@ -1391,8 +1411,8 @@ function App() {
                         onChange={handleFileUpload}
                         style={{ display: 'none' }}
                     />
-                </section >
-            </main >
+                </section>
+            </main>
         </div >
     )
 }
