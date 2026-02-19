@@ -104,13 +104,23 @@ function App() {
         }
 
         try {
-            const response = await fetch(csvUrl);
+            // Attempt direct fetch first with a fallback to proxy for CORS issues
+            let response;
+            try {
+                response = await fetch(csvUrl);
+                if (!response.ok) throw new Error('Fetch failed');
+            } catch (e) {
+                // Use AllOrigins proxy as fallback to bypass CORS
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
+                response = await fetch(proxyUrl);
+            }
+
             if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo".');
 
             const text = await response.text();
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
 
-            if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron datos válidos en el link.');
+            if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron alumnos válidos en este archivo.');
 
             setStudents(parsedStudents);
             setFileExpenses(automaticExpenses);
@@ -120,11 +130,7 @@ function App() {
             alert('¡Datos sincronizados desde el link con éxito!');
         } catch (error) {
             console.error('Error link import:', error);
-            if (error.message.includes('fetch')) {
-                alert(`Error de conexión/CORS: ${error.message}\n\nTIP: Para evitar este error, ve a tu planilla > Archivo > Compartir > "Publicar en la Web".`);
-            } else {
-                alert(`Error: ${error.message}`);
-            }
+            alert(`Error de sincronización: ${error.message}\n\nSi el error persiste, asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo" o usa la opción "Importar CSV" descargando el archivo.`);
         }
     };
 
