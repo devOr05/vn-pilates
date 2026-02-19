@@ -1406,3 +1406,77 @@ body {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 }
+
+/* Expense Table Styles */
+.actions-cell {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.btn-icon-success {
+    background: #ecfdf5;
+    color: #10b981;
+    border: none;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.btn-icon-success:hover {
+    background: #d1fae5;
+    transform: scale(1.1);
+}
+
+.btn-icon-secondary {
+    background: var(--bg-main);
+    color: var(--text-muted);
+    border: none;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.btn-icon-secondary:hover {
+    background: var(--accent-light);
+    color: var(--accent);
+    transform: scale(1.1);
+}
+
+.total-row-highlight {
+    background: #f8fafc;
+    border-top: 2px solid var(--border);
+}
+
+.total-row-highlight td {
+    padding: 1.25rem 1rem !important;
+    font-size: 1.1rem;
+    color: var(--text-main);
+}
+
+.total-row-highlight td:nth-child(2) {
+    color: #ef4444;
+    font-weight: 800;
+}
+
+.amount-highlight {
+    font-weight: 700;
+    color: #ef4444;
+}

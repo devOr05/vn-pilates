@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
-import { Plus, Search, Filter, History, Trash2, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft, Check, X, MessageCircle, AlertCircle } from 'lucide-react'
+import { Plus, Search, Filter, History, Trash2, Pencil, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft, Check, X, MessageCircle, AlertCircle } from 'lucide-react'
 import { parsePilatesCSV } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
@@ -37,6 +37,8 @@ function App() {
         return saved ? JSON.parse(saved) : [];
     });
     const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
+    const [editingExpenseId, setEditingExpenseId] = useState(null);
+    const [editExpenseData, setEditExpenseData] = useState({ description: '', amount: '' });
     const [fileExpenses, setFileExpenses] = useState(() => {
         const saved = localStorage.getItem('vn_pilates_file_expenses');
         return saved ? JSON.parse(saved) : [];
@@ -873,13 +875,53 @@ function App() {
                                             <tbody>
                                                 {expensesData.map(exp => (
                                                     <tr key={exp.id}>
-                                                        <td>{exp.description}</td>
-                                                        <td>$ {parseFloat(exp.amount).toLocaleString()}</td>
-                                                        <td>
-                                                            <button className="btn-icon-danger" onClick={() => setExpensesData(expensesData.filter(e => e.id !== exp.id))}>
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </td>
+                                                        {editingExpenseId === exp.id ? (
+                                                            <>
+                                                                <td>
+                                                                    <input
+                                                                        type="text"
+                                                                        className="edit-input"
+                                                                        value={editExpenseData.description}
+                                                                        onChange={e => setEditExpenseData({ ...editExpenseData, description: e.target.value })}
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="edit-input"
+                                                                        value={editExpenseData.amount}
+                                                                        onChange={e => setEditExpenseData({ ...editExpenseData, amount: e.target.value })}
+                                                                    />
+                                                                </td>
+                                                                <td className="actions-cell">
+                                                                    <button className="btn-icon-success" onClick={() => {
+                                                                        setExpensesData(expensesData.map(e => e.id === exp.id ? { ...e, ...editExpenseData } : e));
+                                                                        setEditingExpenseId(null);
+                                                                    }}>
+                                                                        <Check size={16} />
+                                                                    </button>
+                                                                    <button className="btn-icon-secondary" onClick={() => setEditingExpenseId(null)}>
+                                                                        <X size={16} />
+                                                                    </button>
+                                                                </td>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <td>{exp.description}</td>
+                                                                <td>$ {parseFloat(exp.amount).toLocaleString()}</td>
+                                                                <td className="actions-cell">
+                                                                    <button className="btn-icon-secondary" onClick={() => {
+                                                                        setEditingExpenseId(exp.id);
+                                                                        setEditExpenseData({ description: exp.description, amount: exp.amount });
+                                                                    }}>
+                                                                        <Pencil size={16} />
+                                                                    </button>
+                                                                    <button className="btn-icon-danger" onClick={() => setExpensesData(expensesData.filter(e => e.id !== exp.id))}>
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </td>
+                                                            </>
+                                                        )}
                                                     </tr>
                                                 ))}
                                                 <tr className="total-row">
@@ -962,32 +1004,48 @@ function App() {
                             </div>
 
                             <div className="report-card honorarios-summary">
-                                <h3>Resumen de Gastos del Archivo - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
+                                <h3>Resumen Mensual de Gastos (Planilla + Manuales) - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
                                 <div className="table-wrapper">
                                     <table className="full-data-table summary-table">
                                         <thead>
                                             <tr>
                                                 <th>CONCEPTO</th>
                                                 <th>MONTO</th>
-                                                <th>RECIBIÓ</th>
+                                                <th>ORIGEN / RECIBIÓ</th>
                                                 <th>FECHA</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {fileExpenses.length > 0 ? (
-                                                fileExpenses.map((exp, idx) => (
-                                                    <tr key={idx}>
-                                                        <td><strong>{exp.name}</strong></td>
-                                                        <td>{exp.history[exp.history.length - 1]?.amount}</td>
-                                                        <td>{exp.history[exp.history.length - 1]?.receivedBy}</td>
-                                                        <td>{exp.history[exp.history.length - 1]?.date}</td>
-                                                    </tr>
-                                                ))
-                                            ) : (
+                                            {/* Manual Expenses First */}
+                                            {expensesData.map(exp => (
+                                                <tr key={exp.id}>
+                                                    <td><strong>{exp.description}</strong></td>
+                                                    <td className="amount-highlight">$ {parseFloat(exp.amount).toLocaleString()}</td>
+                                                    <td>Carga Manual</td>
+                                                    <td>{new Date().toLocaleDateString('es-ES')}</td>
+                                                </tr>
+                                            ))}
+
+                                            {/* File Expenses */}
+                                            {fileExpenses.map((exp, idx) => (
+                                                <tr key={`file-${idx}`}>
+                                                    <td><strong>{exp.name}</strong></td>
+                                                    <td className="amount-highlight">{exp.history[exp.history.length - 1]?.amount}</td>
+                                                    <td>{exp.history[exp.history.length - 1]?.receivedBy || 'Planilla'}</td>
+                                                    <td>{exp.history[exp.history.length - 1]?.date}</td>
+                                                </tr>
+                                            ))}
+
+                                            {expensesData.length === 0 && fileExpenses.length === 0 && (
                                                 <tr>
-                                                    <td colSpan="4" className="no-data">Sin gastos detectados en el archivo</td>
+                                                    <td colSpan="4" className="no-data">Sin gastos detectados</td>
                                                 </tr>
                                             )}
+
+                                            <tr className="total-row-highlight">
+                                                <td><strong>TOTAL CONSOLIDADO</strong></td>
+                                                <td colSpan="3"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
