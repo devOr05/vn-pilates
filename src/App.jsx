@@ -62,8 +62,8 @@ function App() {
                     s.id !== "0" &&
                     name !== "GRACIELA DOBAL" &&
                     name !== "DANIEL VIEIRA" &&
-                    !name.includes("HORAS") &&
-                    !name.includes("SUELDO") &&
+                    !(name.includes("HORAS") && !name.includes("GASTO")) &&
+                    !(name.includes("SUELDO") && !name.includes("GASTO")) &&
                     !name.includes("ADELANTO") &&
                     !name.includes("RESTO") &&
                     !(name === "VANI" || name === "NICKI" || name === "AGOSTO")
@@ -285,9 +285,10 @@ function App() {
 
         const manualExpenses = expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0);
 
-        // Sum automatic expenses for the active month (simplified: all automaticExpenses)
+        // Sum automatic expenses (filter for most recent historical entry)
         const autoExpensesValue = fileExpenses.reduce((acc, exp) => {
-            const amount = parseFloat(exp.history[0]?.amount.replace('$', '').replace(',', '')) || 0;
+            const lastPayment = exp.history[0]; // Assuming newest is first
+            const amount = lastPayment ? (parseFloat(lastPayment.amount.replace('$', '').replace(',', '')) || 0) : 0;
             return acc + amount;
         }, 0);
 

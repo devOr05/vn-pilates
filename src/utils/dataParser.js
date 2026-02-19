@@ -64,10 +64,10 @@ export const parsePilatesCSV = (csvString) => {
 
                         const upperName = student.name.toUpperCase();
 
-                        // Metadata filtering
+                        // Metadata filtering (Explicitly EXCLUDE GASTOS from here to catch them below)
                         const isMetadata =
-                            upperName.includes("HORAS") ||
-                            upperName.includes("SUELDO") ||
+                            (upperName.includes("HORAS") && !upperName.includes("GASTO")) ||
+                            (upperName.includes("SUELDO") && !upperName.includes("GASTO")) ||
                             upperName.includes("ADELANTO") ||
                             upperName === "VANI" ||
                             upperName === "NICKI" ||
@@ -76,10 +76,13 @@ export const parsePilatesCSV = (csvString) => {
 
                         if (isMetadata) continue;
 
-                        // Categorize: If has history but no classes/entry info, it's an Expense
-                        if (student.history.length > 0 && !student.classesPerWeek && !student.entryDate) {
+                        // Categorize: If name contains GASTO or has history but no classes/entry info, it's an Expense
+                        const hasRecentHistory = student.history.length > 0;
+                        const isGastoRow = upperName.includes("GASTO");
+
+                        if (hasRecentHistory && (isGastoRow || (!student.classesPerWeek && !student.entryDate))) {
                             automaticExpenses.push(student);
-                        } else if (student.id !== "0" && (student.classesPerWeek || student.history.length > 0)) {
+                        } else if (student.id !== "0" && (student.classesPerWeek || hasRecentHistory)) {
                             students.push(student);
                         }
                     }
