@@ -155,9 +155,13 @@ function App() {
                 response = await fetch(proxyUrl);
             }
 
-            if (!response.ok) throw new Error('No se pudo acceder al link. Asegúrate de que la planilla esté compartida con "Cualquier persona con el vínculo".');
-
             const text = await response.text();
+
+            // Critical check: If we got HTML, it's likely a Google Login redirect (Private sheet)
+            if (text.trim().startsWith('<!DOCTYPE html') || text.trim().startsWith('<html')) {
+                throw new Error('La planilla es privada. En Google Sheets, haz clic en "Compartir" y cambia el acceso a "Cualquier persona con el vínculo" (Lector).');
+            }
+
             const { students: parsedStudents, automaticExpenses } = await parsePilatesCSV(text);
 
             if (!parsedStudents || parsedStudents.length === 0) throw new Error('No se encontraron alumnos válidos en este archivo.');
@@ -1339,10 +1343,14 @@ function App() {
                         <div className="modal-overlay">
                             <div className="modal-card">
                                 <h3>Importar desde Link</h3>
-                                <p className="modal-help">
-                                    Pega aquí el link de tu planilla de Google Sheets.
-                                    Asegúrate de que esté configurada como <strong>"Cualquier persona con el enlace puede ver"</strong>.
-                                </p>
+                                <div className="modal-help-box">
+                                    <p>Para que funcione, sigue estos 2 pasos en tu planilla:</p>
+                                    <ol className="help-steps">
+                                        <li>Haz clic en el botón <strong>Compartir</strong> (arriba a la derecha).</li>
+                                        <li>En "Acceso general", selecciona <strong>"Cualquier persona con el enlace"</strong>.</li>
+                                    </ol>
+                                    <span className="help-note">Esto permite que la aplicación lea los datos sin pedirte login cada vez.</span>
+                                </div>
                                 <div className="form-group">
                                     <label>Link de Google Sheets</label>
                                     <input
