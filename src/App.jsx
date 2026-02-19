@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
-import { Plus, Search, Filter, History, Trash2, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft } from 'lucide-react'
+import { Plus, Search, Filter, History, Trash2, Save, FileText, ChevronRight, User, DollarSign, Calendar, Clock, CreditCard, ChevronLeft, Check, X, MessageCircle, AlertCircle } from 'lucide-react'
 import { parsePilatesCSV } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
@@ -165,8 +165,16 @@ function App() {
     };
 
     const hasPaidCurrentMonth = (student) => {
-        const currentMonth = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-        return student.history.some(h => h.month.toLowerCase() === currentMonth.toLowerCase());
+        if (!student.history || student.history.length === 0) return false;
+        const now = new Date();
+        const currentMonth = now.toLocaleDateString('es-ES', { month: 'long' });
+        const currentYear = now.getFullYear().toString().slice(-2);
+        const searchStr = `${currentMonth} ${currentYear}`.toLowerCase();
+
+        return student.history.some(h =>
+            h.month.toLowerCase().includes(currentMonth.toLowerCase()) ||
+            h.month.toLowerCase().includes(searchStr)
+        );
     };
 
     const addPayment = (studentId) => {
@@ -575,9 +583,13 @@ function App() {
                                                 <p>{student.classesPerWeek} veces por semana</p>
                                             </div>
                                             <div className="student-actions">
-                                                {hasPaidCurrentMonth(student) && (
+                                                {hasPaidCurrentMonth(student) ? (
                                                     <div className="action-icon check" title="Pago al día">
-                                                        <Save size={18} />
+                                                        <Check size={18} />
+                                                    </div>
+                                                ) : (
+                                                    <div className="action-icon pending" title="Pago pendiente">
+                                                        <Clock size={18} />
                                                     </div>
                                                 )}
                                                 {student.phone && (
@@ -589,7 +601,7 @@ function App() {
                                                         onClick={(e) => e.stopPropagation()}
                                                         title="WhatsApp"
                                                     >
-                                                        <History size={18} />
+                                                        <MessageCircle size={18} />
                                                     </a>
                                                 )}
                                                 <button

@@ -322,6 +322,11 @@ body {
     color: #10b981;
 }
 
+.action-icon.pending {
+    background: #fff7ed;
+    color: #f97316;
+}
+
 .action-icon.whatsapp {
     background: #eefdf3;
     color: #25d366;
@@ -634,11 +639,24 @@ body {
     color: var(--text-muted);
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     padding: 0.85rem 1rem;
     border: 1px solid var(--border);
     border-radius: 12px;
     font-size: 1rem;
+    background: white;
+    transition: all 0.2s ease;
+    width: 100%;
+    height: 48px;
+    /* Standardize height */
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
 }
 
 .modal-footer {
@@ -867,6 +885,7 @@ body {
 .form-group-row {
     display: flex;
     gap: 1rem;
+    align-items: flex-start;
 }
 
 .form-group-row .form-group {
