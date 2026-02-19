@@ -14,6 +14,16 @@ function App() {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [sheetLink, setSheetLink] = useState('');
     const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
+
+    // Salary/Honorarios State
+    const [salaryData, setSalaryData] = useState(() => {
+        const saved = localStorage.getItem('vn_pilates_salary');
+        return saved ? JSON.parse(saved) : {
+            vanni: { hours: 0, hourlyValue: 0, advances: 0 },
+            nicki: { hours: 0, hourlyValue: 0, advances: 0 }
+        };
+    });
+
     const [newStudent, setNewStudent] = useState({
         name: '',
         classesPerWeek: '2',
@@ -48,6 +58,11 @@ function App() {
             localStorage.setItem('vn_pilates_data', JSON.stringify(cleanStudents));
         }
     }, [students, isLoaded]);
+
+    // Save Salary Data
+    useEffect(() => {
+        localStorage.setItem('vn_pilates_salary', JSON.stringify(salaryData));
+    }, [salaryData]);
 
     const handleLinkImport = async () => {
         if (!sheetLink) return;
@@ -167,14 +182,18 @@ function App() {
     const hasPaidCurrentMonth = (student) => {
         if (!student.history || student.history.length === 0) return false;
         const now = new Date();
-        const currentMonth = now.toLocaleDateString('es-ES', { month: 'long' });
-        const currentYear = now.getFullYear().toString().slice(-2);
-        const searchStr = `${currentMonth} ${currentYear}`.toLowerCase();
+        const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const currentMonthName = months[now.getMonth()];
+        const currentMonthNum = (now.getMonth() + 1).toString().padStart(2, '0');
+        const currentYearShort = now.getFullYear().toString().slice(-2);
 
-        return student.history.some(h =>
-            h.month.toLowerCase().includes(currentMonth.toLowerCase()) ||
-            h.month.toLowerCase().includes(searchStr)
-        );
+        // Match "febrero", "febrero 24", "02/24", etc.
+        return student.history.some(h => {
+            const m = h.month.toLowerCase();
+            return m.includes(currentMonthName) ||
+                m.includes(`${currentMonthNum}/${currentYearShort}`) ||
+                (m.includes(currentMonthName) && m.includes(currentYearShort));
+        });
     };
 
     const addPayment = (studentId) => {
@@ -579,31 +598,34 @@ function App() {
                                                 {student.name.charAt(0)}
                                             </div>
                                             <div className="student-meta">
-                                                <h4>{student.name}</h4>
+                                                <div className="name-row">
+                                                    <h4>{student.name}</h4>
+                                                    <div className="mini-actions">
+                                                        {hasPaidCurrentMonth(student) ? (
+                                                            <div className="mini-icon check" title="Pago al día">
+                                                                <Check size={14} />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="mini-icon pending" title="Pago pendiente">
+                                                                <Clock size={14} />
+                                                            </div>
+                                                        )}
+                                                        {student.phone && (
+                                                            <a
+                                                                href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="mini-icon whatsapp"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <MessageCircle size={14} />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
                                                 <p>{student.classesPerWeek} veces por semana</p>
                                             </div>
-                                            <div className="student-actions">
-                                                {hasPaidCurrentMonth(student) ? (
-                                                    <div className="action-icon check" title="Pago al día">
-                                                        <Check size={18} />
-                                                    </div>
-                                                ) : (
-                                                    <div className="action-icon pending" title="Pago pendiente">
-                                                        <Clock size={18} />
-                                                    </div>
-                                                )}
-                                                {student.phone && (
-                                                    <a
-                                                        href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="action-icon whatsapp"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        title="WhatsApp"
-                                                    >
-                                                        <MessageCircle size={18} />
-                                                    </a>
-                                                )}
+                                            <div className="card-right-actions">
                                                 <button
                                                     className="action-icon delete"
                                                     onClick={(e) => deleteStudent(student.id, e)}
@@ -611,8 +633,8 @@ function App() {
                                                 >
                                                     <Trash2 size={18} />
                                                 </button>
+                                                <ChevronRight size={18} className="arrow" />
                                             </div>
-                                            <ChevronRight size={18} className="arrow" />
                                         </div>
                                     ))
                                 ) : (
@@ -684,6 +706,69 @@ function App() {
                                             <p>${totals.nickiMoney.toLocaleString()}</p>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="report-card honorarios-section">
+                                <div className="section-header">
+                                    <h3>Honorarios y Horas</h3>
+                                    <span>{new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</span>
+                                </div>
+                                <div className="salary-grid">
+                                    {['vanni', 'nicki'].map(person => {
+                                        const data = salaryData[person];
+                                        const sueldo = data.hours * data.hourlyValue;
+                                        const resto = sueldo - data.advances;
+                                        return (
+                                            <div key={person} className={`salary-card ${person}`}>
+                                                <div className="card-header">
+                                                    <h4>{person.toUpperCase()}</h4>
+                                                </div>
+                                                <div className="salary-inputs">
+                                                    <div className="input-group">
+                                                        <label>Horas Trabajadas</label>
+                                                        <input
+                                                            type="number"
+                                                            value={data.hours}
+                                                            onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(e.target.value) || 0 } })}
+                                                        />
+                                                    </div>
+                                                    <div className="input-group">
+                                                        <label>Valor de la Hora</label>
+                                                        <div className="with-prefix">
+                                                            <span>$</span>
+                                                            <input
+                                                                type="number"
+                                                                value={data.hourlyValue}
+                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hourlyValue: parseFloat(e.target.value) || 0 } })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="input-group">
+                                                        <label>Adelantos</label>
+                                                        <div className="with-prefix">
+                                                            <span>$</span>
+                                                            <input
+                                                                type="number"
+                                                                value={data.advances}
+                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, advances: parseFloat(e.target.value) || 0 } })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="salary-results">
+                                                    <div className="result-row">
+                                                        <span>Sueldo Bruto</span>
+                                                        <strong>${sueldo.toLocaleString()}</strong>
+                                                    </div>
+                                                    <div className="result-row highlight">
+                                                        <span>Resto a pagar</span>
+                                                        <strong>${resto.toLocaleString()}</strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
