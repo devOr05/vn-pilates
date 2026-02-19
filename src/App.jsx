@@ -4,6 +4,7 @@ import { Plus, Search, Filter, History, Trash2, Save, FileText, ChevronRight, Us
 import { parsePilatesCSV } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 function App() {
     const [students, setStudents] = useState([]);
@@ -261,47 +262,56 @@ function App() {
 
     const totals = calculateTotals();
 
-    const exportToCSV = () => {
-        // Build export in the original 19-column spreadsheet format
-        const headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM"];
+    const exportToExcel = (type = 'alumnos') => {
+        let headers = [];
+        let rows = [];
+        let filename = "";
 
-        // Get all unique months to create columns
-        const months = [];
-        students.forEach(s => {
-            s.history.forEach(h => {
-                if (!months.includes(h.month)) months.push(h.month);
+        if (type === 'alumnos') {
+            headers = ["ID", "NOMBRE", "INGRESO", "CLASES/SEM", "TELEFONO"];
+            // Get last 5 months for columns
+            const monthsSet = new Set();
+            students.forEach(s => s.history.forEach(h => monthsSet.add(h.month)));
+            const activeMonths = Array.from(monthsSet).slice(-5);
+            activeMonths.forEach(m => headers.push(m, "Recibió", "Fecha"));
+
+            rows = students.map(s => {
+                const row = [s.id, s.name, s.entryDate, s.classesPerWeek, s.phone || ''];
+                activeMonths.forEach(m => {
+                    const payment = s.history.find(h => h.month === m);
+                    if (payment) {
+                        row.push(payment.amount, payment.receivedBy, payment.date);
+                    } else {
+                        row.push("", "", "");
+                    }
+                });
+                return row;
             });
-        });
-
-        // Take last 5 months for the columns (like the original)
-        const activeMonths = months.slice(-5);
-        activeMonths.forEach(m => {
-            headers.push(m, "Recibió", "Fecha");
-        });
-
-        const rows = students.map(s => {
-            const row = [s.id, s.name, s.entryDate, s.classesPerWeek];
-            activeMonths.forEach(m => {
-                const payment = s.history.find(h => h.month === m);
-                if (payment) {
-                    row.push(payment.amount, payment.receivedBy, payment.date);
-                } else {
-                    row.push("", "", "");
-                }
+            filename = `Alumnos-VN-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
+        } else {
+            // Report Excel
+            headers = ["MES", "RECIBIDO POR", "CONCEPTO", "ALUMNO", "MONTO"];
+            students.forEach(s => {
+                s.history.forEach(h => {
+                    rows.push([h.month, h.receivedBy, "Pago Cuota", s.name, h.amount]);
+                });
             });
-            return row;
-        });
+            // Add Salary rows to report excel
+            rows.push([]);
+            rows.push(["RESUMEN HONORARIOS"]);
+            rows.push(["PROFESOR", "HORAS", "VALOR HORA", "SUELDO BRUTO", "ADELANTOS", "RESTO"]);
+            ['vanni', 'nicki'].forEach(p => {
+                const d = salaryData[p];
+                const sueldo = d.hours * d.hourlyValue;
+                rows.push([p.toUpperCase(), d.hours, d.hourlyValue, sueldo, d.advances, sueldo - d.advances]);
+            });
+            filename = `Reporte-Finanzas-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
+        }
 
-        const csvContent = [headers, ...rows].map(e => e.map(val => `"${val || ''}"`).join(",")).join("\n");
-        const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Gestion-VN-Pilates-${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, type === 'alumnos' ? "Alumnos" : "Reporte");
+        XLSX.writeFile(workbook, filename);
     };
 
     const exportToPDF = () => {
@@ -574,10 +584,10 @@ function App() {
                             <div className="list-header">
                                 <h3>Listado de Alumnos ({filteredStudents.length})</h3>
                                 <div className="list-actions">
-                                    {isLoaded && <button className="btn-secondary" onClick={exportToCSV}>Exportar CSV</button>}
+                                    {isLoaded && <button className="btn-secondary" onClick={() => exportToExcel('alumnos')}>Exportar Excel</button>}
                                     {!isLoaded && (
                                         <button className="btn-upload" onClick={() => fileInputRef.current.click()}>
-                                            Importar CSV de Gestión
+                                            Importar planilla
                                         </button>
                                     )}
                                 </div>
@@ -766,6 +776,12 @@ function App() {
                                                         <strong>${resto.toLocaleString()}</strong>
                                                     </div>
                                                 </div>
+                                                <button
+                                                    className="btn-save-salary"
+                                                    onClick={() => alert(`Datos de ${person.toUpperCase()} guardados con éxito`)}
+                                                >
+                                                    Guardar Datos
+                                                </button>
                                             </div>
                                         );
                                     })}
