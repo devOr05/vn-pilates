@@ -425,6 +425,10 @@ function App() {
                             <ChevronLeft size={20} /> Volver al listado
                         </button>
                         <div className="header-actions">
+                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha Médica">
+                                <FileText size={18} />
+                                <span>Ficha Médica</span>
+                            </button>
                             <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
                         </div>
                     </header>
