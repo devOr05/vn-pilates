@@ -1491,6 +1491,10 @@ body {
     .expense-table .total-row td::before {
         content: "";
     }
+
+    .honorarios-row-subtle td::before {
+        color: var(--accent) !important;
+    }
 }
 
 /* DESKTOP STYLES (Overrides) */
@@ -1788,8 +1792,9 @@ body {
         font-weight: 700;
         color: var(--text-muted);
         text-align: left;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         text-transform: uppercase;
+        margin-right: 0.5rem;
     }
 
     /* Fixing Expense Management Break */

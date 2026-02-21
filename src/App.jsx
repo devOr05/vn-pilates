@@ -1244,12 +1244,13 @@ function App() {
                                                 const sueldo = d.hours * d.hourlyValue;
                                                 return (
                                                     <tr key={p}>
-                                                        <td><strong>{p.toUpperCase()}</strong></td>
-                                                        <td>{d.hours}hs</td>
-                                                        <td>$ {d.hourlyValue.toLocaleString()}</td>
-                                                        <td>$ {sueldo.toLocaleString()}</td>
-                                                        <td>$ {d.advances.toLocaleString()}</td>
-                                                        <td className="amount-highlight">$ {(sueldo - d.advances).toLocaleString()}</td>
+                                                        <td data-label="Personal"><strong>{p.toUpperCase()}</strong></td>
+
+                                                        <td data-label="Horas">{d.hours}hs</td>
+                                                        <td data-label="Valor Hora">$ {d.hourlyValue.toLocaleString()}</td>
+                                                        <td data-label="Sueldo Bruto">$ {sueldo.toLocaleString()}</td>
+                                                        <td data-label="Adelanto">$ {d.advances.toLocaleString()}</td>
+                                                        <td data-label="Resto a Pagar" className="amount-highlight">$ {(sueldo - d.advances).toLocaleString()}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -1274,10 +1275,10 @@ function App() {
                                             {/* Manual Expenses First */}
                                             {expensesData.map(exp => (
                                                 <tr key={exp.id}>
-                                                    <td><strong>{exp.description}</strong></td>
-                                                    <td className="amount-highlight">$ {parseFloat(exp.amount).toLocaleString()}</td>
-                                                    <td>Carga Manual</td>
-                                                    <td>{new Date().toLocaleDateString('es-ES')}</td>
+                                                    <td data-label="Concepto"><strong>{exp.description}</strong></td>
+                                                    <td data-label="Monto" className="amount-highlight">$ {parseFloat(exp.amount).toLocaleString()}</td>
+                                                    <td data-label="Origen/Recibió">Carga Manual</td>
+                                                    <td data-label="Fecha">{new Date().toLocaleDateString('es-ES')}</td>
                                                 </tr>
                                             ))}
 
@@ -1300,10 +1301,10 @@ function App() {
                                             {/* Honorarios Row */}
                                             {totals.totalHonorarios > 0 && (
                                                 <tr className="honorarios-row-subtle">
-                                                    <td><strong>Honorarios Profesores</strong></td>
+                                                    <td data-label="Concepto"><strong>Honorarios Profesores</strong></td>
                                                     <td className="amount-highlight">$ {totals.totalHonorarios.toLocaleString()}</td>
-                                                    <td>Cálculo Auto</td>
-                                                    <td>{new Date().toLocaleDateString('es-ES')}</td>
+                                                    <td data-label="Origen/Recibió">Cálculo Auto</td>
+                                                    <td data-label="Fecha">{new Date().toLocaleDateString('es-ES')}</td>
                                                 </tr>
                                             )}
 
