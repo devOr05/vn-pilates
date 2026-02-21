@@ -221,10 +221,29 @@ function App() {
     };
 
     const addStudent = () => {
-        if (!newStudent.name) return;
+        if (!newStudent.name.trim()) {
+            showToast("Por favor, ingresa un nombre", "error");
+            return;
+        }
+        if (/^\d+$/.test(newStudent.name.trim())) {
+            showToast("El nombre no puede ser solo números", "error");
+            return;
+        }
+        if (newStudent.phone) {
+            const phoneRegex = /^[0-9+\s\-()]{8,20}$/;
+            if (!phoneRegex.test(newStudent.phone)) {
+                showToast("El teléfono debe tener entre 8 y 20 caracteres (solo números y símbolos + - ( ))", "error");
+                return;
+            }
+        }
+        if (newStudent.initialAmount && isNaN(parseFloat(newStudent.initialAmount))) {
+            showToast("El monto inicial debe ser un número válido", "error");
+            return;
+        }
+
         const student = {
             id: `manual-${Date.now()}`,
-            name: newStudent.name,
+            name: newStudent.name.trim(),
             classesPerWeek: newStudent.classesPerWeek,
             entryDate: newStudent.entryDate,
             phone: newStudent.phone,
@@ -245,6 +264,7 @@ function App() {
             initialReceiver: 'Vanina'
         });
         setShowAddModal(false);
+        setIsLoaded(true);
         showToast("Alumno agregado correctamente");
     };
 
@@ -308,7 +328,14 @@ function App() {
 
     const confirmPayment = () => {
         const { month, amount, receivedBy } = newPayment;
-        if (!month || !amount) return;
+        if (!month || !amount) {
+            showToast("Por favor, completa el mes y el monto", "error");
+            return;
+        }
+        if (isNaN(parseFloat(amount))) {
+            showToast("El monto debe ser un número válido", "error");
+            return;
+        }
 
         const updatedStudents = students.map(s => {
             if (s.id === paymentStudentId) {
@@ -316,7 +343,7 @@ function App() {
                     ...s,
                     history: [{
                         month,
-                        amount: amount.startsWith('$') ? amount : `$${amount}`,
+                        amount: amount.toString().startsWith('$') ? amount : `$${amount}`,
                         receivedBy,
                         date: new Date().toLocaleDateString('es-ES')
                     }, ...s.history]
@@ -375,9 +402,14 @@ function App() {
             return acc + amount;
         }, 0);
 
-        const totalExpenses = manualExpenses + autoExpensesValue;
+        // Include Honorarios in Total Expenses
+        const vanniSalary = salaryData.vanni.hours * salaryData.vanni.hourlyValue;
+        const nickiSalary = salaryData.nicki.hours * salaryData.nicki.hourlyValue;
+        const totalHonorarios = vanniSalary + nickiSalary;
 
-        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses };
+        const totalExpenses = manualExpenses + autoExpensesValue + totalHonorarios;
+
+        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios };
     };
 
     const totals = calculateTotals();
@@ -736,7 +768,7 @@ function App() {
                                     <span>$</span>
                                     <input
                                         type="number"
-                                        value={newPayment.amount}
+                                        value={newPayment.amount || ''}
                                         onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
                                         placeholder="0.00"
                                     />
@@ -835,7 +867,7 @@ function App() {
                             </div>
 
                             <div className="student-grid">
-                                {isLoaded ? (
+                                {students.length > 0 || isLoaded ? (
                                     filteredStudents.map(student => (
                                         <div key={student.id} className="student-card" onClick={() => setSelectedStudent(student)}>
                                             <div className="student-avatar">
@@ -922,17 +954,17 @@ function App() {
                                 <div className="report-stats">
                                     <div className="report-stat-card primary">
                                         <div className="stat-label">Ingresos Totales</div>
-                                        <div className="stat-value">$ {totals.totalMoney.toLocaleString()}</div>
+                                        <div className="stat-value">{totals.totalMoney > 0 ? `$ ${totals.totalMoney.toLocaleString()}` : '---'}</div>
                                         <div className="stat-delta">{totals.activeStudents} cuotas cobradas</div>
                                     </div>
                                     <div className="report-stat-card danger">
                                         <div className="stat-label">Gastos Totales</div>
-                                        <div className="stat-value">$ {totals.totalExpenses.toLocaleString()}</div>
+                                        <div className="stat-value">{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</div>
                                         <div className="stat-delta">Costos de este mes</div>
                                     </div>
                                     <div className="report-stat-card success">
                                         <div className="stat-label">Ganancia Neta</div>
-                                        <div className="stat-value">$ {(totals.totalMoney - totals.totalExpenses).toLocaleString()}</div>
+                                        <div className="stat-value">{totals.totalMoney - totals.totalExpenses !== 0 ? `$ ${(totals.totalMoney - totals.totalExpenses).toLocaleString()}` : '---'}</div>
                                         <div className="stat-delta">Balance final</div>
                                     </div>
                                 </div>
@@ -959,9 +991,9 @@ function App() {
                                                         <div className="with-prefix no-symbol">
                                                             <input
                                                                 type="number"
-                                                                value={data.hours}
+                                                                value={data.hours || ''}
                                                                 onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(e.target.value) || 0 } })}
-                                                                placeholder="0"
+                                                                placeholder="hs"
                                                             />
                                                         </div>
                                                     </div>
@@ -971,7 +1003,7 @@ function App() {
                                                             <span>$</span>
                                                             <input
                                                                 type="number"
-                                                                value={data.hourlyValue}
+                                                                value={data.hourlyValue || ''}
                                                                 onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hourlyValue: parseFloat(e.target.value) || 0 } })}
                                                             />
                                                         </div>
@@ -982,7 +1014,7 @@ function App() {
                                                             <span>$</span>
                                                             <input
                                                                 type="number"
-                                                                value={data.advances}
+                                                                value={data.advances || ''}
                                                                 onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, advances: parseFloat(e.target.value) || 0 } })}
                                                             />
                                                         </div>
@@ -991,11 +1023,11 @@ function App() {
                                                 <div className="salary-results">
                                                     <div className="result-row">
                                                         <span>Sueldo Bruto</span>
-                                                        <strong>${sueldo.toLocaleString()}</strong>
+                                                        <strong>{sueldo > 0 ? `$${sueldo.toLocaleString()}` : ''}</strong>
                                                     </div>
                                                     <div className="result-row highlight">
                                                         <span>Resto a pagar</span>
-                                                        <strong>${resto.toLocaleString()}</strong>
+                                                        <strong>{resto !== 0 ? `$${resto.toLocaleString()}` : ''}</strong>
                                                     </div>
                                                 </div>
                                                 <button
@@ -1020,18 +1052,18 @@ function App() {
                                 <div className="expense-summary-mini">
                                     <div className="summary-item">
                                         <span>Manuales:</span>
-                                        <span className="value">$ {expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0).toLocaleString()}</span>
+                                        <span className="value">{expensesData.length > 0 ? `$ ${expensesData.reduce((acc, exp) => acc + (parseFloat(exp.amount) || 0), 0).toLocaleString()}` : '---'}</span>
                                     </div>
                                     <div className="summary-item highlight">
                                         <span>De Planilla:</span>
-                                        <span className="value">$ {fileExpenses.reduce((acc, exp) => {
+                                        <span className="value">{fileExpenses.length > 0 ? `$ ${fileExpenses.reduce((acc, exp) => {
                                             const latest = exp.history[exp.history.length - 1];
                                             return acc + (latest ? cleanMoneyString(latest.amount) : 0);
-                                        }, 0).toLocaleString()}</span>
+                                        }, 0).toLocaleString()}` : '---'}</span>
                                     </div>
                                     <div className="summary-item total">
                                         <span>Total Consolidado:</span>
-                                        <span className="value">$ {totals.totalExpenses.toLocaleString()}</span>
+                                        <span className="value">{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</span>
                                     </div>
                                 </div>
 
@@ -1044,12 +1076,15 @@ function App() {
                                     />
                                     <input
                                         type="number"
-                                        placeholder="Monto $"
-                                        value={newExpense.amount}
+                                        placeholder="Monto"
+                                        value={newExpense.amount || ''}
                                         onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
                                     />
                                     <button className="btn-add" onClick={() => {
-                                        if (!newExpense.description || !newExpense.amount) return;
+                                        if (!newExpense.description || !newExpense.amount) {
+                                            showToast("Por favor, completa la descripción y el monto", "error");
+                                            return;
+                                        }
                                         setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
                                         setNewExpense({ description: '', amount: '' });
                                         showToast("Gasto agregado");
@@ -1084,7 +1119,7 @@ function App() {
                                                                     <input
                                                                         type="number"
                                                                         className="edit-input"
-                                                                        value={editExpenseData.amount}
+                                                                        value={editExpenseData.amount || ''}
                                                                         onChange={e => setEditExpenseData({ ...editExpenseData, amount: e.target.value })}
                                                                     />
                                                                 </td>
@@ -1239,7 +1274,7 @@ function App() {
 
                                             <tr className="total-row-highlight">
                                                 <td><strong>TOTAL CONSOLIDADO</strong></td>
-                                                <td colSpan="3"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
+                                                <td colSpan="3"><strong>{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</strong></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1295,7 +1330,17 @@ function App() {
                                 </div>
                                 <div className="form-group">
                                     <label>Teléfono (Opcional)</label>
-                                    <input type="text" value={newStudent.phone} onChange={e => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Ej: 1122334455" />
+                                    <input
+                                        type="tel"
+                                        value={newStudent.phone}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '' || /^[0-9+\-()\s]*$/.test(val)) {
+                                                setNewStudent({ ...newStudent, phone: val });
+                                            }
+                                        }}
+                                        placeholder="Ej: 1122334455"
+                                    />
                                 </div>
 
                                 <div className="form-divider">Primer Pago (Opcional)</div>
@@ -1303,7 +1348,7 @@ function App() {
                                 <div className="form-group-row">
                                     <div className="form-group">
                                         <label>Monto Recibido</label>
-                                        <input type="text" value={newStudent.initialAmount} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="$0.00" />
+                                        <input type="number" value={newStudent.initialAmount || ''} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="Monto" />
                                     </div>
                                     <div className="form-group">
                                         <label>Recibió</label>
@@ -1342,9 +1387,9 @@ function App() {
                                             <span>$</span>
                                             <input
                                                 type="number"
-                                                value={newPayment.amount}
+                                                value={newPayment.amount || ''}
                                                 onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
-                                                placeholder="0.00"
+                                                placeholder="Monto"
                                             />
                                         </div>
                                     </div>

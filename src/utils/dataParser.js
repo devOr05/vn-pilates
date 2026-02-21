@@ -145,8 +145,8 @@ export const parsePilatesCSV = (csvString) => {
 
                         if (isGastoRow && hasHistory) {
                             automaticExpenses.push(student);
-                        } else if (student.id !== "0" && (student.classesPerWeek || hasHistory) && (name || id)) {
-                            // Only add to students if they have a name or ID (to avoid picking up random fragments)
+                        } else if (student.id !== "0" && (name || id)) {
+                            // More lenient: include anyone with a name or ID, regardless of history/classes
                             students.push(student);
                         }
                     }
