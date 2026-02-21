@@ -410,7 +410,10 @@ function App() {
         // Operational Expenses only (Manual + Planilla)
         const totalExpenses = manualExpenses + autoExpensesValue;
 
-        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios };
+        // User Logic: Net Profit = Income - Operational Expenses (excluding salaries)
+        const netProfit = totalMoney - totalExpenses;
+
+        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios, netProfit };
     };
 
     const totals = calculateTotals();
@@ -481,10 +484,11 @@ function App() {
 
             // Final Summary Balance
             rows.push([]);
-            rows.push(["BALANCE FINAL"]);
+            rows.push(["RESUMEN DE RESULTADOS"]);
             rows.push(["INGRESOS TOTALES", `$ ${totals.totalMoney.toLocaleString()}`]);
             rows.push(["GASTOS TOTALES", `$ ${totals.totalExpenses.toLocaleString()}`]);
-            rows.push(["GANANCIA NETA", `$ ${(totals.totalMoney - totals.totalExpenses).toLocaleString()}`]);
+            rows.push(["GANANCIA NETA (INGRESOS - GASTOS)", `$ ${totals.netProfit.toLocaleString()}`]);
+            rows.push(["HONORARIOS PROFESORES (DETALLE)", `$ ${totals.totalHonorarios.toLocaleString()}`]);
 
             filename = `Reporte-Finanzas-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
         }
@@ -563,7 +567,9 @@ function App() {
         // Final Balance
         doc.setFontSize(16);
         const finalY = doc.lastAutoTable.finalY + 20;
-        doc.text(`GANANCIA NETA FINAL: $${(totals.totalMoney - totals.totalExpenses).toLocaleString()}`, 14, finalY);
+        doc.text(`GANANCIA NETA (Ingresos - Gastos): $${totals.netProfit.toLocaleString()}`, 14, finalY);
+        doc.setFontSize(12);
+        doc.text(`Honorarios Profesores: $${totals.totalHonorarios.toLocaleString()}`, 14, finalY + 10);
 
         // Students Table (Lower priority, separate page if needed or just below)
         doc.addPage();
@@ -965,8 +971,8 @@ function App() {
                                     </div>
                                     <div className="report-stat-card success">
                                         <div className="stat-label">Ganancia Neta</div>
-                                        <div className="stat-value">{totals.totalMoney - (totals.totalExpenses + totals.totalHonorarios) !== 0 ? `$ ${(totals.totalMoney - (totals.totalExpenses + totals.totalHonorarios)).toLocaleString()}` : '---'}</div>
-                                        <div className="stat-delta">Balance final</div>
+                                        <div className="stat-value">{totals.netProfit !== 0 ? `$ ${totals.netProfit.toLocaleString()}` : '---'}</div>
+                                        <div className="stat-delta">Ingresos - Gastos</div>
                                     </div>
                                 </div>
                             </div>
@@ -1298,10 +1304,25 @@ function App() {
                                                 </tr>
                                             )}
 
+                                            {/* Honorarios rows in Detailed Table */}
+                                            {['vanni', 'nicki'].map(p => {
+                                                const d = salaryData[p];
+                                                const sueldo = d.hours * d.hourlyValue;
+                                                if (sueldo <= 0) return null;
+                                                return (
+                                                    <tr key={`salary-row-${p}`} className="honorario-row-subtle">
+                                                        <td data-label="Concepto"><strong>Honorarios {p.toUpperCase()}</strong></td>
+                                                        <td data-label="Monto" className="amount-highlight">$ {sueldo.toLocaleString()}</td>
+                                                        <td data-label="Origen/Recibió">Cálculo Auto</td>
+                                                        <td data-label="Fecha">{new Date().toLocaleDateString('es-ES')}</td>
+                                                    </tr>
+                                                );
+                                            })}
+
                                             {/* Total Row */}
                                             <tr className="total-row">
-                                                <td><strong>TOTAL EGRESOS</strong></td>
-                                                <td colSpan="3"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
+                                                <td><strong>TOTAL EGRESOS (Gastos + Honorarios)</strong></td>
+                                                <td colSpan="3"><strong>$ {(totals.totalExpenses + totals.totalHonorarios).toLocaleString()}</strong></td>
                                             </tr>
                                         </tbody>
                                     </table>
