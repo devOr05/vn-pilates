@@ -402,12 +402,9 @@ function App() {
             return acc + amount;
         }, 0);
 
-        // Include Honorarios in Total Expenses
-        const vanniSalary = salaryData.vanni.hours * salaryData.vanni.hourlyValue;
-        const nickiSalary = salaryData.nicki.hours * salaryData.nicki.hourlyValue;
+        // Operational Expenses only (Manual + Planilla)
+        const totalExpenses = manualExpenses + autoExpensesValue;
         const totalHonorarios = vanniSalary + nickiSalary;
-
-        const totalExpenses = manualExpenses + autoExpensesValue + totalHonorarios;
 
         return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios };
     };
@@ -460,7 +457,7 @@ function App() {
 
             // Add Expenses section
             rows.push([]);
-            rows.push(["RESUMEN DE GASTOS (MANUALES + PLANILLA)"]);
+            rows.push(["RESUMEN MENSUAL DE EGRESOS (MANUALES + PLANILLA)"]);
             rows.push(["DESCRIPCIÓN / CONCEPTO", "MONTO", "ORIGEN / RECIBIÓ", "FECHA"]);
 
             // Manual
@@ -476,7 +473,7 @@ function App() {
                 }
             });
 
-            rows.push(["TOTAL DE GASTOS", `$ ${totals.totalExpenses.toLocaleString()}`]);
+            rows.push(["TOTAL DE EGRESOS", `$ ${totals.totalExpenses.toLocaleString()}`]);
 
             // Final Summary Balance
             rows.push([]);
@@ -541,7 +538,7 @@ function App() {
 
         // Expenses Table
         doc.setFontSize(14);
-        doc.text("Resumen Mensual de Gastos", 14, doc.lastAutoTable.finalY + 15);
+        doc.text("Resumen Mensual de egresos", 14, doc.lastAutoTable.finalY + 15);
         const expenseHeaders = [["Concepto", "Monto", "Origen", "Fecha"]];
         const expenseRows = [];
         expensesData.forEach(exp => expenseRows.push([exp.description, `$${parseFloat(exp.amount).toLocaleString()}`, "Manual", new Date().toLocaleDateString('es-ES')]));
@@ -550,7 +547,7 @@ function App() {
             if (l) expenseRows.push([exp.name, l.amount, l.receivedBy || 'Planilla', l.date]);
         });
         expenseRows.push([{ content: 'HONORARIOS (Sueldos)', styles: { fontStyle: 'italic' } }, { content: `$${totals.totalHonorarios.toLocaleString()}`, styles: { fontStyle: 'italic' } }, 'Cálculo Auto', '-']);
-        expenseRows.push([{ content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `$${totals.totalExpenses.toLocaleString()}`, styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }, '', '']);
+        expenseRows.push([{ content: 'TOTAL EGRESOS', styles: { fontStyle: 'bold' } }, { content: `$${totals.totalExpenses.toLocaleString()}`, styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }, '', '']);
 
         doc.autoTable({
             startY: doc.lastAutoTable.finalY + 20,
@@ -958,13 +955,13 @@ function App() {
                                         <div className="stat-delta">{totals.activeStudents} cuotas cobradas</div>
                                     </div>
                                     <div className="report-stat-card danger">
-                                        <div className="stat-label">Gastos Totales</div>
+                                        <div className="stat-label">Egresos Totales</div>
                                         <div className="stat-value">{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</div>
                                         <div className="stat-delta">Costos de este mes</div>
                                     </div>
                                     <div className="report-stat-card success">
                                         <div className="stat-label">Ganancia Neta</div>
-                                        <div className="stat-value">{totals.totalMoney - totals.totalExpenses !== 0 ? `$ ${(totals.totalMoney - totals.totalExpenses).toLocaleString()}` : '---'}</div>
+                                        <div className="stat-value">{totals.totalMoney - (totals.totalExpenses + totals.totalHonorarios) !== 0 ? `$ ${(totals.totalMoney - (totals.totalExpenses + totals.totalHonorarios)).toLocaleString()}` : '---'}</div>
                                         <div className="stat-delta">Balance final</div>
                                     </div>
                                 </div>
@@ -1063,8 +1060,8 @@ function App() {
                             {/* Gastos Section */}
                             <div className="report-card">
                                 <div className="section-header">
-                                    <h3>Gestión de Gastos (Gastos Operativos)</h3>
-                                    <p className="report-subtitle">Registra aquí los egresos del mes</p>
+                                    <h3>Resumen Mensual de egresos</h3>
+                                    <p className="report-subtitle">Detalle de todos los movimientos de dinero</p>
                                 </div>
 
                                 <div className="expense-summary-mini">
@@ -1179,7 +1176,7 @@ function App() {
                                                     </tr>
                                                 ))}
                                                 <tr className="total-row">
-                                                    <td><strong>TOTAL GASTOS</strong></td>
+                                                    <td><strong>TOTAL EGRESOS</strong></td>
                                                     <td colSpan="2"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
                                                 </tr>
                                             </tbody>
@@ -1259,7 +1256,7 @@ function App() {
                             </div>
 
                             <div className="report-card honorarios-summary">
-                                <h3>Resumen Mensual de Gastos (Planilla + Manuales) - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
+                                <h3>Resumen Mensual de egresos (Planilla + Manuales) - {new Date().toLocaleDateString('es-ES', { month: 'long' }).toUpperCase()} {new Date().getFullYear()}</h3>
                                 <div className="table-wrapper">
                                     <table className="full-data-table summary-table">
                                         <thead>
@@ -1297,19 +1294,10 @@ function App() {
                                                 </tr>
                                             )}
 
-                                            {/* Honorarios Row */}
-                                            {totals.totalHonorarios > 0 && (
-                                                <tr className="honorarios-row-subtle">
-                                                    <td data-label="Concepto"><strong>Honorarios Profesores</strong></td>
-                                                    <td className="amount-highlight">$ {totals.totalHonorarios.toLocaleString()}</td>
-                                                    <td data-label="Origen/Recibió">Cálculo Auto</td>
-                                                    <td data-label="Fecha">{new Date().toLocaleDateString('es-ES')}</td>
-                                                </tr>
-                                            )}
-
-                                            <tr className="total-row-highlight">
-                                                <td><strong>TOTAL</strong></td>
-                                                <td colSpan="3"><strong>{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</strong></td>
+                                            {/* Total Row */}
+                                            <tr className="total-row">
+                                                <td><strong>TOTAL EGRESOS</strong></td>
+                                                <td colSpan="3"><strong>$ {totals.totalExpenses.toLocaleString()}</strong></td>
                                             </tr>
                                         </tbody>
                                     </table>
