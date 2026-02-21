@@ -939,8 +939,7 @@ function App() {
                             <div className="report-card main-summary">
                                 <div className="report-header">
                                     <div className="report-title-group">
-                                        <h3>Resumen de Gestión Geral</h3>
-                                        <p className="report-subtitle">Datos consolidados de todos los alumnos</p>
+                                        <h3>Resumen de Gestión General</h3>
                                     </div>
                                     <div className="report-header-buttons">
                                         <button className="btn-secondary" onClick={() => exportToExcel('reporte')}>
