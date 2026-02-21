@@ -476,7 +476,7 @@ function App() {
                 }
             });
 
-            rows.push(["TOTAL CONSOLIDADO DE GASTOS", `$ ${totals.totalExpenses.toLocaleString()}`]);
+            rows.push(["TOTAL DE GASTOS", `$ ${totals.totalExpenses.toLocaleString()}`]);
 
             // Final Summary Balance
             rows.push([]);
@@ -549,7 +549,8 @@ function App() {
             const l = exp.history[exp.history.length - 1];
             if (l) expenseRows.push([exp.name, l.amount, l.receivedBy || 'Planilla', l.date]);
         });
-        expenseRows.push([{ content: 'TOTAL CONSOLIDADO', styles: { fontStyle: 'bold' } }, { content: `$${totals.totalExpenses.toLocaleString()}`, styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }, '', '']);
+        expenseRows.push([{ content: 'HONORARIOS (Sueldos)', styles: { fontStyle: 'italic' } }, { content: `$${totals.totalHonorarios.toLocaleString()}`, styles: { fontStyle: 'italic' } }, 'Cálculo Auto', '-']);
+        expenseRows.push([{ content: 'TOTAL', styles: { fontStyle: 'bold' } }, { content: `$${totals.totalExpenses.toLocaleString()}`, styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }, '', '']);
 
         doc.autoTable({
             startY: doc.lastAutoTable.finalY + 20,
@@ -990,9 +991,15 @@ function App() {
                                                         <label>Horas Trabajadas</label>
                                                         <div className="with-prefix no-symbol">
                                                             <input
-                                                                type="number"
+                                                                type="text"
+                                                                inputMode="decimal"
                                                                 value={data.hours || ''}
-                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(e.target.value) || 0 } })}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(val) || 0 } });
+                                                                    }
+                                                                }}
                                                                 placeholder="hs"
                                                             />
                                                         </div>
@@ -1002,9 +1009,15 @@ function App() {
                                                         <div className="with-prefix">
                                                             <span>$</span>
                                                             <input
-                                                                type="number"
+                                                                type="text"
+                                                                inputMode="decimal"
                                                                 value={data.hourlyValue || ''}
-                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, hourlyValue: parseFloat(e.target.value) || 0 } })}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        setSalaryData({ ...salaryData, [person]: { ...data, hourlyValue: parseFloat(val) || 0 } });
+                                                                    }
+                                                                }}
                                                             />
                                                         </div>
                                                     </div>
@@ -1013,9 +1026,15 @@ function App() {
                                                         <div className="with-prefix">
                                                             <span>$</span>
                                                             <input
-                                                                type="number"
+                                                                type="text"
+                                                                inputMode="decimal"
                                                                 value={data.advances || ''}
-                                                                onChange={e => setSalaryData({ ...salaryData, [person]: { ...data, advances: parseFloat(e.target.value) || 0 } })}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        setSalaryData({ ...salaryData, [person]: { ...data, advances: parseFloat(val) || 0 } });
+                                                                    }
+                                                                }}
                                                             />
                                                         </div>
                                                     </div>
@@ -1062,7 +1081,7 @@ function App() {
                                         }, 0).toLocaleString()}` : '---'}</span>
                                     </div>
                                     <div className="summary-item total">
-                                        <span>Total Consolidado:</span>
+                                        <span>TOTAL:</span>
                                         <span className="value">{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</span>
                                     </div>
                                 </div>
@@ -1075,10 +1094,16 @@ function App() {
                                         onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
                                     />
                                     <input
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         placeholder="Monto"
                                         value={newExpense.amount || ''}
-                                        onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(',', '.');
+                                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                setNewExpense({ ...newExpense, amount: val });
+                                            }
+                                        }}
                                     />
                                     <button className="btn-add" onClick={() => {
                                         if (!newExpense.description || !newExpense.amount) {
@@ -1272,8 +1297,18 @@ function App() {
                                                 </tr>
                                             )}
 
+                                            {/* Honorarios Row */}
+                                            {totals.totalHonorarios > 0 && (
+                                                <tr className="honorarios-row-subtle">
+                                                    <td><strong>Honorarios Profesores</strong></td>
+                                                    <td className="amount-highlight">$ {totals.totalHonorarios.toLocaleString()}</td>
+                                                    <td>Cálculo Auto</td>
+                                                    <td>{new Date().toLocaleDateString('es-ES')}</td>
+                                                </tr>
+                                            )}
+
                                             <tr className="total-row-highlight">
-                                                <td><strong>TOTAL CONSOLIDADO</strong></td>
+                                                <td><strong>TOTAL</strong></td>
                                                 <td colSpan="3"><strong>{totals.totalExpenses > 0 ? `$ ${totals.totalExpenses.toLocaleString()}` : '---'}</strong></td>
                                             </tr>
                                         </tbody>
@@ -1321,11 +1356,24 @@ function App() {
                                 <div className="form-group-row">
                                     <div className="form-group">
                                         <label>Clases por semana</label>
-                                        <input type="number" value={newStudent.classesPerWeek} onChange={e => setNewStudent({ ...newStudent, classesPerWeek: e.target.value })} />
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={newStudent.classesPerWeek}
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/\D/g, '');
+                                                setNewStudent({ ...newStudent, classesPerWeek: val });
+                                            }}
+                                        />
                                     </div>
                                     <div className="form-group">
                                         <label>Fecha de Ingreso</label>
-                                        <input type="date" value={newStudent.entryDate} onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })} />
+                                        <input
+                                            type="text"
+                                            placeholder="Ej: 21/02/2024"
+                                            value={newStudent.entryDate}
+                                            onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })}
+                                        />
                                     </div>
                                 </div>
                                 <div className="form-group">
@@ -1348,7 +1396,18 @@ function App() {
                                 <div className="form-group-row">
                                     <div className="form-group">
                                         <label>Monto Recibido</label>
-                                        <input type="number" value={newStudent.initialAmount || ''} onChange={e => setNewStudent({ ...newStudent, initialAmount: e.target.value })} placeholder="Monto" />
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={newStudent.initialAmount || ''}
+                                            onChange={e => {
+                                                const val = e.target.value.replace(',', '.');
+                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                    setNewStudent({ ...newStudent, initialAmount: val });
+                                                }
+                                            }}
+                                            placeholder="Monto"
+                                        />
                                     </div>
                                     <div className="form-group">
                                         <label>Recibió</label>
@@ -1386,9 +1445,15 @@ function App() {
                                         <div className="with-prefix">
                                             <span>$</span>
                                             <input
-                                                type="number"
+                                                type="text"
+                                                inputMode="decimal"
                                                 value={newPayment.amount || ''}
-                                                onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                                onChange={e => {
+                                                    const val = e.target.value.replace(',', '.');
+                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                        setNewPayment({ ...newPayment, amount: val });
+                                                    }
+                                                }}
                                                 placeholder="Monto"
                                             />
                                         </div>
