@@ -84,6 +84,11 @@ function App() {
     const [userWorkspace, setUserWorkspace] = useState(null);
 
     useEffect(() => {
+        if (!supabase) {
+            setIsInitialLoad(false);
+            return;
+        }
+
         // Check current session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
@@ -1171,6 +1176,35 @@ function App() {
 
     if (isInitialLoad) {
         return <div className="loading-screen">Cargando Gestión Flex...</div>;
+    }
+
+    if (!supabase) {
+        return (
+            <div className="auth-container" style={{ textAlign: 'center', flexDirection: 'column', gap: '2rem' }}>
+                <div className="auth-card animate-fade-in" style={{ maxWidth: '600px' }}>
+                    <div className="auth-header">
+                        <AlertCircle size={48} color="#ef4444" style={{ marginBottom: '1rem' }} />
+                        <h2>Configuración Requerida</h2>
+                        <p>No se detectaron las credenciales de conexión con la base de datos.</p>
+                    </div>
+
+                    <div className="report-card" style={{ textAlign: 'left', background: '#f8fafc' }}>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Sigue estos pasos en Vercel:</h3>
+                        <ol style={{ paddingLeft: '1.2rem', lineHeight: '1.6', fontSize: '0.95rem' }}>
+                            <li>Ve al dashboard de <strong>Vercel</strong> y selecciona este proyecto.</li>
+                            <li>Entra en <strong>Settings</strong> {'->'} <strong>Environment Variables</strong>.</li>
+                            <li>Crea una variable llamada <code>VITE_SUPABASE_URL</code> con tu URL de Supabase.</li>
+                            <li>Crea otra llamada <code>VITE_SUPABASE_ANON_KEY</code> con tu Anon Key.</li>
+                            <li>Ve a la pestaña <strong>Deployments</strong> y elige <strong>Redeploy</strong> en el último envío.</li>
+                        </ol>
+                    </div>
+
+                    <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                        Si estás en desarrollo local, asegúrate de tener un archivo <code>.env</code> con estas variables.
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     if (!session && !isStudentMode) {
