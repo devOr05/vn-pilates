@@ -84,26 +84,36 @@ function App() {
     const [userWorkspace, setUserWorkspace] = useState(null);
 
     useEffect(() => {
+        console.log("Auth Effect: Initializing...");
         if (!supabase) {
+            console.warn("Auth Effect: Supabase client is null. Missing config?");
             setIsInitialLoad(false);
             return;
         }
 
         // Check current session
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+            console.log("Auth Effect: getSession result:", { session: !!session, error });
             setSession(session);
-            if (session) fetchAppData(session.user);
-            setIsInitialLoad(false);
+            if (session) {
+                fetchAppData(session.user);
+            } else {
+                setIsInitialLoad(false);
+            }
         });
 
         // Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            console.log("Auth Effect: onAuthStateChange event:", event, "session:", !!session);
             setSession(session);
-            if (session) fetchAppData(session.user);
-            else {
+            if (session) {
+                fetchAppData(session.user);
+            } else {
                 setStudents([]);
                 setNotifications([]);
                 setUserWorkspace(null);
+                setIsLoaded(false);
+                setIsInitialLoad(false);
             }
         });
 
@@ -111,6 +121,7 @@ function App() {
     }, []);
 
     const fetchAppData = async (user) => {
+        console.log("fetchAppData: Starting for user:", user.email);
         try {
             // 1. Get or Create Workspace
             let { data: workspaceMembers, error: memberError } = await supabase
@@ -118,16 +129,26 @@ function App() {
                 .select('workspace_id, workspaces(*)')
                 .eq('user_id', user.id);
 
+            if (memberError) {
+                console.error("fetchAppData: memberError:", memberError);
+                throw memberError;
+            }
+
+            console.log("fetchAppData: workspaceMembers found:", workspaceMembers?.length || 0);
             let workspaceId;
 
             if (!workspaceMembers || workspaceMembers.length === 0) {
+                console.log("fetchAppData: No workspace found, checking invites...");
                 // Check if user has an invite
                 const { data: invites, error: invError } = await supabase
                     .from('workspace_invites')
                     .select('*')
                     .eq('email', user.email);
 
+                if (invError) console.error("fetchAppData: invite check error:", invError);
+
                 if (invites && invites.length > 0) {
+                    console.log("fetchAppData: Found invite, joining workspace:", invites[0].workspace_id);
                     const invite = invites[0];
                     const { error: joinError } = await supabase.from('workspace_members').insert([
                         { workspace_id: invite.workspace_id, user_id: user.id, role: invite.role }
@@ -142,14 +163,16 @@ function App() {
                     return fetchAppData(user);
                 }
 
+                console.log("fetchAppData: Creating default workspace...");
                 // Create default workspace for new user
                 const { data: newWS, error: wsError } = await supabase
                     .from('workspaces')
-                    .insert([{ name: `${user.email.split('@')[0]}'s Workspace` }])
+                    .insert([{ name: `${user.email.split('@')[0]}'s Workspace`, owner_id: user.id }])
                     .select()
                     .single();
 
                 if (wsError) throw wsError;
+                console.log("fetchAppData: Workspace created:", newWS.id);
 
                 await supabase.from('workspace_members').insert([
                     { workspace_id: newWS.id, user_id: user.id, role: 'owner' }
@@ -263,31 +286,45 @@ function App() {
             }
 
             setIsLoaded(true);
+            setIsInitialLoad(false);
+            console.log("fetchAppData: Success!");
         } catch (error) {
-            console.error("Error loading data:", error);
+            console.error("fetchAppData: Critical Error:", error);
             showToast("Error al cargar datos de la nube", "error");
+            setIsInitialLoad(false);
+            setIsLoaded(true); // Allow UI to show even if data fetch failed partially
         }
     };
 
     const handleAuth = async (e) => {
         e.preventDefault();
+        console.log("handleAuth: Starting...", { mode: authMode, email: authEmail });
         setAuthLoading(true);
         try {
             if (authMode === 'login') {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { error, data } = await supabase.auth.signInWithPassword({
                     email: authEmail,
                     password: authPassword
                 });
-                if (error) throw error;
+                if (error) {
+                    console.error("handleAuth: Login Error:", error);
+                    throw error;
+                }
+                console.log("handleAuth: Login Success!", data.user?.id);
             } else {
-                const { error } = await supabase.auth.signUp({
+                const { error, data } = await supabase.auth.signUp({
                     email: authEmail,
                     password: authPassword
                 });
-                if (error) throw error;
+                if (error) {
+                    console.error("handleAuth: Signup Error:", error);
+                    throw error;
+                }
+                console.log("handleAuth: Signup Success!", data.user?.id);
                 showToast("Registro exitoso. ¡Revisa tu email!");
             }
         } catch (error) {
+            console.error("handleAuth: Exception:", error);
             showToast(error.message, "error");
         } finally {
             setAuthLoading(false);
