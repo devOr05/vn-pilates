@@ -957,7 +957,7 @@ function App() {
                 });
                 return row;
             });
-            filename = `Alumnos-VN-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Alumnos-Gestion-Flex-${new Date().toISOString().split('T')[0]}.xlsx`;
         } else {
             // Report Excel
             headers = ["MES", "RECIBIDO POR", "CONCEPTO", "ALUMNO", "MONTO"];
@@ -1004,7 +1004,7 @@ function App() {
             rows.push(["GANANCIA NETA (INGRESOS - GASTOS)", `$ ${totals.netProfit.toLocaleString()}`]);
             rows.push(["HONORARIOS PROFESORES (DETALLE)", `$ ${totals.totalHonorarios.toLocaleString()}`]);
 
-            filename = `Reporte-Finanzas-Pilates-${new Date().toISOString().split('T')[0]}.xlsx`;
+            filename = `Reporte-Finanzas-Gestion-Flex-${new Date().toISOString().split('T')[0]}.xlsx`;
         }
 
         const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -1105,7 +1105,7 @@ function App() {
             theme: 'grid'
         });
 
-        doc.save(`VN-Pilates-Reporte-${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`Gestion-Flex-Reporte-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
     const exportStudentPDF = (student) => {
