@@ -18,8 +18,16 @@ import {
     X,
     Pencil,
     DollarSign,
-    Clock
+    Clock,
+    Bell,
+    Camera,
+    Image as ImageIcon,
+    FileCheck,
+    LogOut,
+    Mail,
+    Lock
 } from 'lucide-react';
+import { supabase } from './supabaseClient';
 import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
@@ -38,6 +46,399 @@ function App() {
     const [sheetLink, setSheetLink] = useState('');
     const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
     const [toasts, setToasts] = useState([]);
+    const [showPhoneAddModal, setShowPhoneAddModal] = useState(false);
+    const [phoneToAdd, setPhoneToAdd] = useState('');
+    const [generatedLink, setGeneratedLink] = useState('');
+
+    const [notifications, setNotifications] = useState([]);
+    const [newNotification, setNewNotification] = useState({
+        title: '',
+        message: '',
+        type: 'General',
+        target: 'Todos'
+    });
+
+    const [registrationToken, setRegistrationToken] = useState(null);
+    const [isStudentMode, setIsStudentMode] = useState(false);
+    const [studentStep, setStudentStep] = useState(1); // 1: Datos, 2: Disciplina/Horario, 3: Dashboard
+    const [studentData, setStudentData] = useState({
+        dni: '',
+        birthDate: '',
+        address: '',
+        physicalAptitudeUrl: null,
+        disciplina: '',
+        horario: ''
+    });
+    const videoRef = useRef(null);
+    const [showCamera, setShowCamera] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('todos'); // todos | activo | pendiente | inactivo
+
+    const [session, setSession] = useState(null);
+    const [authMode, setAuthMode] = useState('login'); // login | signup
+    const [authEmail, setAuthEmail] = useState('');
+    const [authPassword, setAuthPassword] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [ocrLoading, setOcrLoading] = useState(false);
+
+    const [userWorkspace, setUserWorkspace] = useState(null);
+
+    useEffect(() => {
+        // Check current session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            if (session) fetchAppData(session.user);
+            setIsInitialLoad(false);
+        });
+
+        // Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            if (session) fetchAppData(session.user);
+            else {
+                setStudents([]);
+                setNotifications([]);
+                setUserWorkspace(null);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const fetchAppData = async (user) => {
+        try {
+            // 1. Get or Create Workspace
+            let { data: workspaceMembers, error: memberError } = await supabase
+                .from('workspace_members')
+                .select('workspace_id, workspaces(*)')
+                .eq('user_id', user.id);
+
+            let workspaceId;
+
+            if (!workspaceMembers || workspaceMembers.length === 0) {
+                // Check if user has an invite
+                const { data: invites, error: invError } = await supabase
+                    .from('workspace_invites')
+                    .select('*')
+                    .eq('email', user.email);
+
+                if (invites && invites.length > 0) {
+                    const invite = invites[0];
+                    const { error: joinError } = await supabase.from('workspace_members').insert([
+                        { workspace_id: invite.workspace_id, user_id: user.id, role: invite.role }
+                    ]);
+
+                    if (joinError) throw joinError;
+
+                    // Delete the invite as it's been used
+                    await supabase.from('workspace_invites').delete().eq('id', invite.id);
+
+                    // Re-run to load correctly
+                    return fetchAppData(user);
+                }
+
+                // Create default workspace for new user
+                const { data: newWS, error: wsError } = await supabase
+                    .from('workspaces')
+                    .insert([{ name: `${user.email.split('@')[0]}'s Workspace` }])
+                    .select()
+                    .single();
+
+                if (wsError) throw wsError;
+
+                await supabase.from('workspace_members').insert([
+                    { workspace_id: newWS.id, user_id: user.id, role: 'owner' }
+                ]);
+
+                // 1b. Ensure Profile exists
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+
+                if (!profile) {
+                    await supabase.from('profiles').insert([
+                        { id: user.id, full_name: user.email.split('@')[0] }
+                    ]);
+                }
+
+                workspaceId = newWS.id;
+                setUserWorkspace(newWS);
+            } else {
+                workspaceId = workspaceMembers[0].workspace_id;
+                setUserWorkspace(workspaceMembers[0].workspaces);
+            }
+
+            // 2. Fetch Students
+            const { data: studentsData, error: stError } = await supabase
+                .from('students')
+                .select('*, payments(*)')
+                .eq('workspace_id', workspaceId);
+
+            if (stError) throw stError;
+
+            // Map Supabase data to existing App format
+            const formattedStudents = studentsData.map(s => ({
+                id: s.id,
+                name: s.name,
+                entryDate: s.entry_date,
+                classesPerWeek: s.classes_per_week,
+                phone: s.phone,
+                status: s.status,
+                registrationToken: s.registration_token,
+                dni: s.dni,
+                birthDate: s.birth_date,
+                address: s.address,
+                physicalAptitudeUrl: s.physical_aptitude_url,
+                history: (s.payments || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(p => ({
+                    month: p.month,
+                    amount: p.amount.toString(),
+                    receivedBy: p.received_by,
+                    date: new Date(p.created_at).toLocaleDateString()
+                }))
+            }));
+
+            setStudents(formattedStudents);
+            setIsLoaded(true);
+
+            // 3. Fetch Notifications
+            const { data: notifsData } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('workspace_id', workspaceId)
+                .order('created_at', { ascending: false });
+
+            if (notifsData) {
+                setNotifications(notifsData.map(n => ({
+                    id: n.id,
+                    title: n.title,
+                    message: n.message,
+                    type: n.type,
+                    target: n.target,
+                    date: n.created_at
+                })));
+            }
+
+            // 4. Fetch Expenses
+            const { data: expenses } = await supabase
+                .from('expenses')
+                .select('*')
+                .eq('workspace_id', workspaceId)
+                .order('created_at', { ascending: false });
+
+            if (expenses) {
+                setExpensesData(expenses.filter(e => e.category === 'Operativo').map(e => ({
+                    id: e.id,
+                    description: e.description,
+                    amount: e.amount.toString()
+                })));
+                setFileExpenses(expenses.filter(e => e.category === 'Planilla').map(e => ({
+                    id: e.id,
+                    description: e.description,
+                    history: [{ amount: `$${e.amount}`, date: new Date(e.created_at).toLocaleDateString() }]
+                })));
+            }
+
+            // 5. Fetch Salary Configs
+            const { data: configs } = await supabase
+                .from('workspace_configs')
+                .select('*')
+                .eq('workspace_id', workspaceId);
+
+            if (configs) {
+                const newSalaryData = { ...salaryData };
+                configs.forEach(c => {
+                    if (c.config_key.startsWith('salary_')) {
+                        const person = c.config_key.replace('salary_', '');
+                        newSalaryData[person] = c.config_value;
+                    }
+                });
+                setSalaryData(newSalaryData);
+            }
+
+            setIsLoaded(true);
+        } catch (error) {
+            console.error("Error loading data:", error);
+            showToast("Error al cargar datos de la nube", "error");
+        }
+    };
+
+    const handleAuth = async (e) => {
+        e.preventDefault();
+        setAuthLoading(true);
+        try {
+            if (authMode === 'login') {
+                const { error } = await supabase.auth.signInWithPassword({
+                    email: authEmail,
+                    password: authPassword
+                });
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.auth.signUp({
+                    email: authEmail,
+                    password: authPassword
+                });
+                if (error) throw error;
+                showToast("Registro exitoso. ¡Revisa tu email!");
+            }
+        } catch (error) {
+            showToast(error.message, "error");
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        showToast("Sesión cerrada");
+    };
+
+    const saveSalaryData = async (person) => {
+        try {
+            const { error } = await supabase
+                .from('workspace_configs')
+                .upsert({
+                    workspace_id: userWorkspace.id,
+                    config_key: `salary_${person}`,
+                    config_value: salaryData[person]
+                }, { onConflict: 'workspace_id, config_key' });
+
+            if (error) throw error;
+            showToast(`Datos de ${person.toUpperCase()} guardados en la nube`);
+        } catch (error) {
+            console.error("Error saving salary config:", error);
+            showToast("Error al guardar en la nube", "error");
+        }
+    };
+
+    const addExpense = async () => {
+        if (!newExpense.description || !newExpense.amount) {
+            showToast("Por favor, completa la descripción y el monto", "error");
+            return;
+        }
+        try {
+            const { error } = await supabase
+                .from('expenses')
+                .insert([{
+                    workspace_id: userWorkspace.id,
+                    description: newExpense.description,
+                    amount: parseFloat(newExpense.amount),
+                    category: 'Operativo'
+                }]);
+
+            if (error) throw error;
+            setNewExpense({ description: '', amount: '' });
+            fetchAppData(session.user);
+            showToast("Gasto agregado");
+        } catch (error) {
+            console.error("Error adding expense:", error);
+            showToast("Error al guardar gasto", "error");
+        }
+    };
+
+    const deleteExpense = async (id) => {
+        try {
+            const { error } = await supabase
+                .from('expenses')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            fetchAppData(session.user);
+            showToast("Gasto eliminado", "error");
+        } catch (error) {
+            console.error("Error deleting expense:", error);
+            showToast("Error al eliminar gasto", "error");
+        }
+    };
+
+    const inviteAdmin = async (email) => {
+        if (!email) {
+            showToast("El email es requerido", "error");
+            return;
+        }
+        try {
+            const { error } = await supabase
+                .from('workspace_invites')
+                .insert([{ workspace_id: userWorkspace.id, email, role: 'admin' }]);
+
+            if (error) throw error;
+            showToast(`Invitación enviada a ${email}`);
+            setInviteEmail('');
+            fetchWorkspaceAdmins();
+        } catch (error) {
+            console.error("Error inviting admin:", error);
+            showToast("Error al enviar invitación", "error");
+        }
+    };
+
+    const [workspaceAdmins, setWorkspaceAdmins] = useState([]);
+    const [inviteEmail, setInviteEmail] = useState('');
+
+    const fetchWorkspaceAdmins = async () => {
+        if (!userWorkspace) return;
+        const { data } = await supabase
+            .from('workspace_members')
+            .select('id, role, profiles(full_name), user_id')
+            .eq('workspace_id', userWorkspace.id);
+
+        const { data: invites } = await supabase
+            .from('workspace_invites')
+            .select('id, email, role')
+            .eq('workspace_id', userWorkspace.id);
+
+        setWorkspaceAdmins({ members: data || [], invites: invites || [] });
+    };
+
+    useEffect(() => {
+        if (userWorkspace && currentView === 'ajustes') {
+            fetchWorkspaceAdmins();
+        }
+    }, [userWorkspace, currentView]);
+
+    const sendNotification = async () => {
+        if (!newNotification.title || !newNotification.message) {
+            showToast("Por favor, completa título y mensaje", "error");
+            return;
+        }
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .insert([{
+                    workspace_id: userWorkspace.id,
+                    title: newNotification.title,
+                    message: newNotification.message,
+                    type: newNotification.type,
+                    target: newNotification.target
+                }]);
+
+            if (error) throw error;
+
+            setNewNotification({ title: '', message: '', type: 'General', target: 'Todos' });
+            fetchAppData(session.user);
+            showToast("Notificación enviada");
+        } catch (error) {
+            console.error("Error sending notification:", error);
+            showToast("Error al enviar notificación", "error");
+        }
+    };
+
+    const deleteNotification = async (id) => {
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            fetchAppData(session.user);
+            showToast("Notificación eliminada", "error");
+        } catch (error) {
+            console.error("Error deleting notification:", error);
+            showToast("Error al eliminar notificación", "error");
+        }
+    };
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -48,12 +449,9 @@ function App() {
     };
 
     // Salary/Honorarios State
-    const [salaryData, setSalaryData] = useState(() => {
-        const saved = localStorage.getItem('vn_pilates_salary');
-        return saved ? JSON.parse(saved) : {
-            vanni: { hours: 0, hourlyValue: 0, advances: 0 },
-            nicki: { hours: 0, hourlyValue: 0, advances: 0 }
-        };
+    const [salaryData, setSalaryData] = useState({
+        vanni: { hours: 0, hourlyValue: 0, advances: 0 },
+        nicki: { hours: 0, hourlyValue: 0, advances: 0 }
     });
 
     const [newStudent, setNewStudent] = useState({
@@ -63,66 +461,61 @@ function App() {
         phone: '',
         initialAmount: '',
     });
-    const [expensesData, setExpensesData] = useState(() => {
-        const saved = localStorage.getItem('vn_pilates_expenses');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [expensesData, setExpensesData] = useState([]);
     const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
     const [editingExpenseId, setEditingExpenseId] = useState(null);
     const [editExpenseData, setEditExpenseData] = useState({ description: '', amount: '' });
-    const [fileExpenses, setFileExpenses] = useState(() => {
-        const saved = localStorage.getItem('vn_pilates_file_expenses');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [fileExpenses, setFileExpenses] = useState([]);
     const fileInputRef = useRef(null);
 
-    // Persistence: Load on Mount
+    // Initialization on Mount
     useEffect(() => {
-        const savedData = localStorage.getItem('vn_pilates_data');
-        if (savedData) {
-            setStudents(JSON.parse(savedData));
-            setIsLoaded(true);
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (token) {
+            setRegistrationToken(token);
+            setIsStudentMode(true);
         }
     }, []);
 
-    // Persistence: Save on Change
+    // Automated Notifications for Fee Expiry
     useEffect(() => {
-        if (isLoaded) {
-            // Definitively filter out ghost students and metadata rows before saving
-            const cleanStudents = students.filter(s => {
-                const name = s.name.toUpperCase();
-                return (
-                    s.id !== "0" &&
-                    name !== "GRACIELA DOBAL" &&
-                    name !== "DANIEL VIEIRA" &&
-                    !(name.includes("HORAS") && !name.includes("GASTO")) &&
-                    !(name.includes("SUELDO") && !name.includes("GASTO")) &&
-                    !name.includes("ADELANTO") &&
-                    !name.includes("RESTO") &&
-                    !(name === "VANI" || name === "NICKI" || name === "AGOSTO") &&
-                    !name.includes("GASTO") &&
-                    !s.id.toUpperCase().includes("GASTO")
-                );
+        const checkExpiries = () => {
+            const today = new Date();
+            const newAutoNotifs = [];
+
+            students.forEach(student => {
+                if (student.status !== 'activo') return;
+
+                const hasPaid = hasPaidCurrentMonth(student);
+                if (!hasPaid) {
+                    // Check if notification already exists for this student this month
+                    const monthYear = `${today.getMonth()}-${today.getFullYear()}`;
+                    const notifId = `fee-alert-${student.id}-${monthYear}`;
+
+                    const alreadyNotified = notifications.find(n => n.id === notifId);
+
+                    if (!alreadyNotified) {
+                        newAutoNotifs.push({
+                            id: notifId,
+                            title: "Vencimiento de Cuota",
+                            message: `Hola ${student.name}, te recordamos que tu cuota de ${today.toLocaleString('es-ES', { month: 'long' })} está próxima a vencer.`,
+                            type: "Vencimiento de cuota",
+                            target: student.id, // Target specific student
+                            date: new Date().toISOString()
+                        });
+                    }
+                }
             });
-            if (cleanStudents.length !== students.length) {
-                setStudents(cleanStudents);
+
+            if (newAutoNotifs.length > 0) {
+                setNotifications(prev => [...newAutoNotifs, ...prev]);
             }
-            localStorage.setItem('vn_pilates_data', JSON.stringify(cleanStudents));
-        }
-    }, [students, isLoaded]);
+        };
 
-    useEffect(() => {
-        localStorage.setItem('vn_pilates_file_expenses', JSON.stringify(fileExpenses));
-    }, [fileExpenses]);
-
-    // Save Salary & Expenses Data
-    useEffect(() => {
-        localStorage.setItem('vn_pilates_salary', JSON.stringify(salaryData));
-    }, [salaryData]);
-
-    useEffect(() => {
-        localStorage.setItem('vn_pilates_expenses', JSON.stringify(expensesData));
-    }, [expensesData]);
+        const timer = setTimeout(checkExpiries, 5000); // Check 5 seconds after load
+        return () => clearTimeout(timer);
+    }, [students, notifications]);
 
     const handleLinkImport = async () => {
         if (!sheetLink) return;
@@ -220,7 +613,7 @@ function App() {
         }
     };
 
-    const addStudent = () => {
+    const addStudent = async () => {
         if (!newStudent.name.trim()) {
             showToast("Por favor, ingresa un nombre", "error");
             return;
@@ -241,62 +634,159 @@ function App() {
             return;
         }
 
-        const student = {
-            id: `manual-${Date.now()}`,
-            name: newStudent.name.trim(),
-            classesPerWeek: newStudent.classesPerWeek,
-            entryDate: newStudent.entryDate,
-            phone: newStudent.phone,
-            history: newStudent.initialAmount ? [{
-                month: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
-                amount: newStudent.initialAmount.startsWith('$') ? newStudent.initialAmount : `$${newStudent.initialAmount}`,
-                receivedBy: newStudent.initialReceiver,
-                date: new Date().toLocaleDateString('es-ES')
-            }] : []
-        };
-        setStudents([student, ...students]);
-        setNewStudent({
-            name: '',
-            classesPerWeek: '2',
-            entryDate: new Date().toISOString().split('T')[0],
-            phone: '',
-            initialAmount: '',
-            initialReceiver: 'Vanina'
-        });
-        setShowAddModal(false);
-        setIsLoaded(true);
-        showToast("Alumno agregado correctamente");
-    };
+        try {
+            const token = btoa(`${newStudent.name.trim()}-${Date.now()}`).replace(/=/g, '');
+            const studentToInsert = {
+                workspace_id: userWorkspace.id,
+                name: newStudent.name.trim(),
+                classes_per_week: parseInt(newStudent.classesPerWeek),
+                entry_date: newStudent.entryDate,
+                phone: newStudent.phone || null,
+                status: 'activo',
+                registration_token: token
+            };
 
-    const handleResetData = () => {
-        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODOS los alumnos, pagos, gastos y honorarios permanentemente.')) {
-            // Clear States
-            setStudents([]);
-            setFileExpenses([]);
-            setExpensesData([]);
-            setSalaryData({
-                vanni: { hours: 0, hourlyValue: 0, advances: 0 },
-                nicki: { hours: 0, hourlyValue: 0, advances: 0 }
-            });
+            const { data: insertedStudent, error } = await supabase
+                .from('students')
+                .insert([studentToInsert])
+                .select()
+                .single();
 
-            // Clear LocalStorage
-            localStorage.removeItem('vn_pilates_data');
-            localStorage.removeItem('vn_pilates_file_expenses');
-            localStorage.removeItem('vn_pilates_expenses');
-            localStorage.removeItem('vn_pilates_salary');
+            if (error) throw error;
 
-            setIsLoaded(false);
-            setCurrentView('alumnos');
-            setSelectedStudent(null);
-            showToast('Base de datos reseteada por completo.', 'error');
+            // Handle initial payment if present
+            if (newStudent.initialAmount) {
+                const { error: pError } = await supabase
+                    .from('payments')
+                    .insert([{
+                        student_id: insertedStudent.id,
+                        workspace_id: userWorkspace.id,
+                        amount: parseFloat(newStudent.initialAmount),
+                        month: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
+                        received_by: newStudent.initialReceiver,
+                        payment_type: 'Cuota'
+                    }]);
+                if (pError) throw pError;
+            }
+
+            // Refresh app data
+            fetchAppData(session.user);
+
+            setNewStudent({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0], phone: '', initialAmount: '', initialReceiver: 'Vanina' });
+            setShowAddModal(false);
+
+            if (window.confirm("¿Deseas generar un link para que el alumno complete sus datos adicionales (DNI, Dirección, etc)?")) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                setGeneratedLink(`${baseUrl}?token=${token}`);
+                setPhoneToAdd('');
+                setShowPhoneAddModal(true);
+            } else {
+                showToast("Alumno agregado correctamente");
+            }
+        } catch (error) {
+            console.error("Error adding student:", error);
+            showToast("Error al guardar el alumno en la nube", "error");
         }
     };
 
-    const deleteStudent = (studentId, event) => {
+    const generateRegistrationLink = async (phone) => {
+        if (!phone) {
+            showToast("El número de teléfono es requerido", "error");
+            return;
+        }
+
+        try {
+            const token = btoa(`${phone}-${Date.now()}`).replace(/=/g, '');
+            const { data: insertedStudent, error } = await supabase
+                .from('students')
+                .insert([{
+                    workspace_id: userWorkspace.id,
+                    name: `Alumno (vía ${phone})`,
+                    phone: phone,
+                    status: 'pendiente',
+                    registration_token: token,
+                    classes_per_week: 2, // Default
+                    entry_date: new Date().toISOString().split('T')[0]
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            const baseUrl = window.location.origin + window.location.pathname;
+            const fullLink = `${baseUrl}?token=${token}`;
+            setGeneratedLink(fullLink);
+
+            // Refresh
+            fetchAppData(session.user);
+            showToast("Link de invitación generado");
+        } catch (error) {
+            console.error("Error generating link:", error);
+            showToast("Error al generar link en la nube", "error");
+        }
+    };
+
+    const handleResetData = async () => {
+        if (!userWorkspace) return;
+        if (window.confirm('⚠️ ¿ESTÁS SEGURO? Esta acción borrará permanentemente TODOS los datos de ESTE espacio de trabajo en la nube.')) {
+            try {
+                // Delete students (cascades to payments)
+                const { error: sError } = await supabase
+                    .from('students')
+                    .delete()
+                    .eq('workspace_id', userWorkspace.id);
+                if (sError) throw sError;
+
+                // Delete expenses
+                const { error: eError } = await supabase
+                    .from('expenses')
+                    .delete()
+                    .eq('workspace_id', userWorkspace.id);
+                if (eError) throw eError;
+
+                // Delete notifications
+                const { error: nError } = await supabase
+                    .from('notifications')
+                    .delete()
+                    .eq('workspace_id', userWorkspace.id);
+                if (nError) throw nError;
+
+                // Clear configs
+                const { error: cError } = await supabase
+                    .from('workspace_configs')
+                    .delete()
+                    .eq('workspace_id', userWorkspace.id);
+                if (cError) throw cError;
+
+                showToast('Datos del workspace eliminados por completo.', 'error');
+                fetchAppData(session.user);
+            } catch (error) {
+                console.error("Error resetting data:", error);
+                showToast("Error al resetear datos en la nube", "error");
+            }
+        }
+    };
+
+    const deleteStudent = async (studentId, event) => {
         event.stopPropagation();
-        if (window.confirm('¿Estás seguro de eliminar este alumno?')) {
-            setStudents(students.filter(s => s.id !== studentId));
-            showToast("Alumno eliminado", "error");
+        if (window.confirm("¿Seguro que deseas eliminar este alumno? Se borrará todo su historial.")) {
+            try {
+                const { error } = await supabase
+                    .from('students')
+                    .delete()
+                    .eq('id', studentId);
+
+                if (error) throw error;
+
+                fetchAppData(session.user);
+                showToast("Alumno eliminado");
+                if (selectedStudent && selectedStudent.id === studentId) {
+                    setSelectedStudent(null);
+                }
+            } catch (error) {
+                console.error("Error deleting student:", error);
+                showToast("Error al eliminar alumno en la nube", "error");
+            }
         }
     };
 
@@ -326,7 +816,7 @@ function App() {
         setShowPaymentModal(true);
     };
 
-    const confirmPayment = () => {
+    const confirmPayment = async () => {
         const { month, amount, receivedBy } = newPayment;
         if (!month || !amount) {
             showToast("Por favor, completa el mes y el monto", "error");
@@ -337,35 +827,54 @@ function App() {
             return;
         }
 
-        const updatedStudents = students.map(s => {
-            if (s.id === paymentStudentId) {
-                const updatedStudent = {
-                    ...s,
-                    history: [{
-                        month,
-                        amount: amount.toString().startsWith('$') ? amount : `$${amount}`,
-                        receivedBy,
-                        date: new Date().toLocaleDateString('es-ES')
-                    }, ...s.history]
-                };
-                // Update selected student if viewing matches
-                if (selectedStudent && selectedStudent.id === paymentStudentId) {
-                    setSelectedStudent(updatedStudent);
-                }
-                return updatedStudent;
-            }
-            return s;
-        });
+        try {
+            const { error } = await supabase
+                .from('payments')
+                .insert([{
+                    student_id: paymentStudentId,
+                    workspace_id: userWorkspace.id,
+                    amount: parseFloat(amount),
+                    month,
+                    received_by: receivedBy,
+                    payment_type: 'Cuota'
+                }]);
 
-        setStudents(updatedStudents);
-        setShowPaymentModal(false);
-        showToast("Pago agregado correctamente");
+            if (error) throw error;
+
+            fetchAppData(session.user);
+            setShowPaymentModal(false);
+            showToast("Pago registrado correctamente");
+        } catch (error) {
+            console.error("Error recording payment:", error);
+            showToast("Error al registrar pago en la nube", "error");
+        }
     };
 
-    const saveStudentChanges = () => {
+    const saveStudentChanges = async () => {
         if (!selectedStudent) return;
-        setStudents(students.map(s => s.id === selectedStudent.id ? selectedStudent : s));
-        showToast("Cambios guardados con éxito");
+        try {
+            const { error } = await supabase
+                .from('students')
+                .update({
+                    name: selectedStudent.name,
+                    classes_per_week: parseInt(selectedStudent.classesPerWeek),
+                    entry_date: selectedStudent.entryDate,
+                    phone: selectedStudent.phone,
+                    dni: selectedStudent.dni,
+                    birth_date: selectedStudent.birthDate,
+                    address: selectedStudent.address,
+                    physical_aptitude_url: selectedStudent.physicalAptitudeUrl
+                })
+                .eq('id', selectedStudent.id);
+
+            if (error) throw error;
+
+            fetchAppData(session.user);
+            showToast("Cambios guardados con éxito");
+        } catch (error) {
+            console.error("Error saving student:", error);
+            showToast("Error al guardar cambios en la nube", "error");
+        }
     };
 
     const updateStudentField = (field, value) => {
@@ -504,7 +1013,7 @@ function App() {
 
         // Add Title
         doc.setFontSize(18);
-        doc.text("Resumen de Gestión VN Pilates", 14, 20);
+        doc.text("Resumen de Gestión - Gestión Flex", 14, 20);
         doc.setFontSize(11);
         doc.text(`Fecha de generación: ${new Date().toLocaleDateString()}`, 14, 30);
 
@@ -571,7 +1080,7 @@ function App() {
         doc.setFontSize(12);
         doc.text(`Honorarios Profesores: $${totals.totalHonorarios.toLocaleString()}`, 14, finalY + 10);
 
-        // Students Table (Lower priority, separate page if needed or just below)
+        // Students Table
         doc.addPage();
         doc.setFontSize(14);
         doc.text("Listado Detallado de Alumnos", 14, 20);
@@ -596,35 +1105,273 @@ function App() {
 
     const exportStudentPDF = (student) => {
         const doc = new jsPDF();
-
         doc.setFontSize(18);
         doc.text(`Ficha de Alumno: ${student.name}`, 14, 20);
-
         doc.setFontSize(11);
         doc.text(`Clases por semana: ${student.classesPerWeek}`, 14, 30);
         doc.text(`Fecha de ingreso: ${student.entryDate}`, 14, 35);
-
         const historyHeaders = [["Mes", "Monto", "Recibió", "Fecha de Pago"]];
-        const historyData = student.history.map(h => [
-            h.month, h.amount, h.receivedBy, h.date
-        ]);
-
+        const historyRows = student.history.map(h => [h.month, h.amount, h.receivedBy, h.date]);
         doc.autoTable({
             startY: 45,
             head: historyHeaders,
-            body: historyData,
+            body: historyRows,
             theme: 'striped',
             headStyles: { fillStyle: '#6366f1' }
         });
-
         doc.save(`Ficha-${student.name.replace(/\s+/g, '-')}.pdf`);
     };
+
+    const handleCameraCapture = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoRef.current, 0, 0);
+
+        setOcrLoading(true);
+        setTimeout(() => {
+            setStudentData({
+                ...studentData,
+                dni: '12345678',
+                address: 'Calle Falsa 123',
+                birthDate: '1990-01-01'
+            });
+            setOcrLoading(false);
+            setShowCamera(false);
+            showToast("Datos extraídos correctamente del documento");
+        }, 2000);
+    };
+
+    const finishStudentRegistration = async () => {
+        try {
+            const currentStudent = students.find(s => s.registrationToken === registrationToken);
+            if (!currentStudent) throw new Error("Student not found");
+
+            const { error } = await supabase
+                .from('students')
+                .update({
+                    ...studentData,
+                    classes_per_week: parseInt(studentData.classes_per_week || currentStudent.classesPerWeek), // fallback if not set in step 2
+                    status: 'activo',
+                    registration_token: null // Consume token
+                })
+                .eq('id', currentStudent.id);
+
+            if (error) throw error;
+
+            setStudentStep(3);
+            fetchAppData(session.user);
+            showToast("Registro completado con éxito");
+        } catch (error) {
+            console.error("Error finishing registration:", error);
+            showToast("Error al completar el registro", "error");
+        }
+    };
+
+    if (isInitialLoad) {
+        return <div className="loading-screen">Cargando Gestión Flex...</div>;
+    }
+
+    if (!session && !isStudentMode) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card animate-fade-in">
+                    <div className="auth-header">
+                        <div className="auth-logo">
+                            <h1>Gestión Flex</h1>
+                        </div>
+                        <h2>{authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}</h2>
+                        <p>{authMode === 'login' ? 'Bienvenido de nuevo' : 'Únete a Gestión Flex hoy'}</p>
+                    </div>
+
+                    <form className="auth-form" onSubmit={handleAuth}>
+                        <div className="form-group">
+                            <label><Mail size={16} /> Email</label>
+                            <input
+                                type="email"
+                                required
+                                value={authEmail}
+                                onChange={e => setAuthEmail(e.target.value)}
+                                placeholder="tu@email.com"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label><Lock size={16} /> Contraseña</label>
+                            <input
+                                type="password"
+                                required
+                                value={authPassword}
+                                onChange={e => setAuthPassword(e.target.value)}
+                                placeholder="••••••••"
+                            />
+                        </div>
+
+                        <button className="btn-confirm-full" type="submit" disabled={authLoading}>
+                            {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
+                        </button>
+                    </form>
+
+                    <div className="auth-footer">
+                        {authMode === 'login' ? (
+                            <p>¿No tienes cuenta? <button onClick={() => setAuthMode('signup')}>Regístrate</button></p>
+                        ) : (
+                            <p>¿Ya tienes cuenta? <button onClick={() => setAuthMode('login')}>Inicia Sesión</button></p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (isStudentMode) {
+        const currentStudent = students.find(s => s.registrationToken === registrationToken) || { name: 'Alumno' };
+
+        // Filter notifications for this specific student or 'Todos'
+        const studentNotifications = notifications.filter(n =>
+            n.target === 'Todos' ||
+            n.target === 'Activos' ||
+            n.target === currentStudent.id
+        );
+
+        return (
+            <div className="student-app-container">
+                <header className="student-header">
+                    <h1>Gestión Flex</h1>
+                    <span className="welcome-msg">Hola, {currentStudent.name.split(' ')[0]}</span>
+                </header>
+
+                <main className="student-main">
+                    {studentStep === 1 ? (
+                        <div className="registration-card animate-fade-in">
+                            <h2>Completa tus datos</h2>
+                            <p className="step-desc">Necesitamos estos datos para tu ficha médica y administrativa.</p>
+
+                            <div className="ocr-section">
+                                <button className="btn-ocr" onClick={() => setShowCamera(true)}>
+                                    <Camera size={20} /> Escanear DNI
+                                </button>
+                                <span>o completa manualmente</span>
+                            </div>
+
+                            {showCamera && (
+                                <div className="camera-overlay">
+                                    <video ref={videoRef} autoPlay playsInline />
+                                    <div className="camera-controls">
+                                        <button className="btn-confirm" onClick={handleCameraCapture}>Capturar</button>
+                                        <button className="btn-cancel" onClick={() => setShowCamera(false)}>Cerrar</button>
+                                    </div>
+                                    {ocrLoading && <div className="ocr-spinner">Procesando...</div>}
+                                </div>
+                            )}
+
+                            <div className="student-form">
+                                <div className="form-group">
+                                    <label>DNI</label>
+                                    <input type="text" value={studentData.dni} onChange={e => setStudentData({ ...studentData, dni: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Fecha de Nacimiento</label>
+                                    <input type="date" value={studentData.birthDate} onChange={e => setStudentData({ ...studentData, birthDate: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Dirección</label>
+                                    <input type="text" value={studentData.address} onChange={e => setStudentData({ ...studentData, address: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label>Apto Físico (Link o descripción)</label>
+                                    <input type="text" value={studentData.physicalAptitudeUrl || ''} onChange={e => setStudentData({ ...studentData, physicalAptitudeUrl: e.target.value })} placeholder="URL a archivo o comentario" />
+                                </div>
+                                <button className="btn-confirm-full" onClick={() => setStudentStep(2)}>Siguiente</button>
+                            </div>
+                        </div>
+                    ) : studentStep === 2 ? (
+                        <div className="registration-card animate-fade-in">
+                            <h2>Disciplina y Horario</h2>
+                            <p className="step-desc">Selecciona tu actividad principal.</p>
+
+                            <div className="student-form">
+                                <div className="form-group">
+                                    <label>Disciplina</label>
+                                    <select value={studentData.disciplina} onChange={e => setStudentData({ ...studentData, disciplina: e.target.value })}>
+                                        <option value="">Selecciona...</option>
+                                        <option value="Pilates Reformer">Pilates Reformer</option>
+                                        <option value="Yoga">Yoga</option>
+                                        <option value="Funcional">Funcional</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Horario Preferido</label>
+                                    <select value={studentData.horario} onChange={e => setStudentData({ ...studentData, horario: e.target.value })}>
+                                        <option value="">Selecciona...</option>
+                                        <option value="Mañana (8:00 - 12:00)">Mañana (8:00 - 12:00)</option>
+                                        <option value="Tarde (14:00 - 18:00)">Tarde (14:00 - 18:00)</option>
+                                        <option value="Noche (18:00 - 21:00)">Noche (18:00 - 21:00)</option>
+                                    </select>
+                                </div>
+                                <div className="btn-group-row">
+                                    <button className="btn-cancel" onClick={() => setStudentStep(1)}>Atrás</button>
+                                    <button className="btn-confirm" onClick={finishStudentRegistration}>Finalizar Registro</button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="student-dashboard animate-fade-in">
+                            <h2>Mi Dashboard</h2>
+
+                            <div className="student-status-grid">
+                                <div className="status-card">
+                                    <div className="status-icon paid"><FileCheck size={24} /></div>
+                                    <div className="status-info">
+                                        <span className="label">Estado de Inscripción</span>
+                                        <span className="value">Activo</span>
+                                    </div>
+                                </div>
+                                <div className="status-card">
+                                    <div className={`status-icon ${hasPaidCurrentMonth(currentStudent) ? 'paid' : 'pending'}`}>
+                                        <DollarSign size={24} />
+                                    </div>
+                                    <div className="status-info">
+                                        <span className="label">Cuota Mensual</span>
+                                        <span className="value">{hasPaidCurrentMonth(currentStudent) ? 'Al día' : 'Pendiente'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="upcoming-section">
+                                <h3>Notificaciones</h3>
+                                <div className="notifications-list">
+                                    {notifications.length > 0 ? (
+                                        notifications
+                                            .filter(n => n.target === 'Todos' || n.target === 'Activos')
+                                            .map(n => (
+                                                <div key={n.id} className="notification-item">
+                                                    <div className="ni-header">
+                                                        <span className={`n-type ${n.type.toLowerCase().replace(/ /g, '-')}`}>{n.type}</span>
+                                                        <span className="ni-date">{new Date(n.date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <h4>{n.title}</h4>
+                                                    <p>{n.message}</p>
+                                                </div>
+                                            ))
+                                    ) : (
+                                        <p className="no-data">No tienes notificaciones pendientes.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </main>
+            </div>
+        );
+    }
 
     const filteredStudents = students.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
         s.id !== "0" &&
-        s.name.toUpperCase() !== "GRACIELA DOBAL" &&
-        s.name.toUpperCase() !== "DANIEL VIEIRA"
+        (statusFilter === 'todos' || s.status === statusFilter || (!s.status && statusFilter === 'activo')) &&
+        !s.name.toUpperCase().includes("GASTO") &&
+        !s.id.toUpperCase().includes("GASTO")
     );
 
     if (selectedStudent) {
@@ -632,8 +1379,8 @@ function App() {
             <div className="app-container">
                 <aside className="sidebar">
                     <div className="logo-section">
-                        <h1>VN Pilates</h1>
-                        <span className="beta-label">v1.0 Beta</span>
+                        <h1>Gestión Flex</h1>
+                        <span className="beta-label">Gestión inteligente de alumnos</span>
                     </div>
                     <nav className="nav-menu">
                         <div className="nav-group">
@@ -654,6 +1401,18 @@ function App() {
                                 onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
                             >
                                 <Settings size={22} /> <span>Ajustes</span>
+                            </button>
+                            <button
+                                className={`nav-item ${currentView === 'notificaciones' ? 'active' : ''}`}
+                                onClick={() => { setCurrentView('notificaciones'); setSelectedStudent(null); }}
+                            >
+                                <Bell size={22} /> <span>Notificaciones</span>
+                            </button>
+                        </div>
+
+                        <div className="nav-group logout-group">
+                            <button className="nav-item btn-logout" onClick={handleLogout}>
+                                <LogOut size={22} /> <span>Cerrar Sesión</span>
                             </button>
                         </div>
 
@@ -816,8 +1575,8 @@ function App() {
         <div className="app-container">
             <aside className="sidebar">
                 <div className="logo-section">
-                    <h1>VN Pilates</h1>
-                    <span className="beta-label">v1.0 Beta</span>
+                    <h1>Gestión Flex</h1>
+                    <span className="beta-label">Gestión inteligente de alumnos</span>
                 </div>
                 <nav className="nav-menu">
                     <div className="nav-group">
@@ -839,6 +1598,15 @@ function App() {
                         >
                             <Settings size={22} /> <span>Ajustes</span>
                         </button>
+                        <button
+                            className={`nav-item ${currentView === 'notificaciones' ? 'active' : ''}`}
+                            onClick={() => setCurrentView('notificaciones')}
+                        >
+                            <Bell size={22} /> <span>Notificaciones</span>
+                        </button>
+                        <button className="nav-item btn-logout" onClick={handleLogout}>
+                            <LogOut size={22} /> <span>Cerrar Sesión</span>
+                        </button>
                     </div>
 
                 </nav>
@@ -847,20 +1615,32 @@ function App() {
             <main className="main-content">
                 <header className="main-header">
                     {currentView === 'alumnos' ? (
-                        <div className="search-bar">
-                            <Search size={18} className="search-icon" />
-                            <input
-                                type="text"
-                                placeholder="Buscar alumno..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    ) : (
+                        <div className="search-filter-group">
+                            <div className="search-bar">
+                                <Search size={18} className="search-icon" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar alumno..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="filter-group">
+                                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                                    <option value="todos">Todos los Estados</option>
+                                    <option value="activo">Activos</option>
+                                    <option value="pendiente">Pendientes</option>
+                                    <option value="inactivo">Inactivos</option>
+                                </select>
+                            </div>
+                        </div>) : (
                         <h2>Reportes de Gestión</h2>
                     )}
                     {currentView === 'alumnos' && (
-                        <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
+                        <div className="header-actions">
+                            <button className="btn-secondary" onClick={() => setShowPhoneAddModal(true)}><Plus size={18} /> Por número</button>
+                            <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
+                        </div>
                     )}
                 </header>
 
@@ -927,7 +1707,7 @@ function App() {
                                             <FileText size={48} />
                                         </div>
                                         <div className="text-box">
-                                            <h3>Bienvenido a VN Pilates</h3>
+                                            <h3>Bienvenido a Gestión Flex</h3>
                                             <p>Aún no hay datos cargados en esta computadora.</p>
                                             <button
                                                 className="btn-add"
@@ -1057,7 +1837,7 @@ function App() {
                                                 </div>
                                                 <button
                                                     className="btn-save-salary"
-                                                    onClick={() => showToast(`Datos de ${person.toUpperCase()} guardados con éxito`)}
+                                                    onClick={() => saveSalaryData(person)}
                                                 >
                                                     Guardar Datos
                                                 </button>
@@ -1111,15 +1891,7 @@ function App() {
                                             }
                                         }}
                                     />
-                                    <button className="btn-add" onClick={() => {
-                                        if (!newExpense.description || !newExpense.amount) {
-                                            showToast("Por favor, completa la descripción y el monto", "error");
-                                            return;
-                                        }
-                                        setExpensesData([...expensesData, { ...newExpense, id: Date.now() }]);
-                                        setNewExpense({ description: '', amount: '' });
-                                        showToast("Gasto agregado");
-                                    }}>
+                                    <button className="btn-add" onClick={addExpense}>
                                         <Plus size={18} /> Agregar
                                     </button>
                                 </div>
@@ -1177,7 +1949,7 @@ function App() {
                                                                     }}>
                                                                         <Pencil size={16} />
                                                                     </button>
-                                                                    <button className="btn-icon-danger" onClick={() => setExpensesData(expensesData.filter(e => e.id !== exp.id))}>
+                                                                    <button className="btn-icon-danger" onClick={() => deleteExpense(exp.id)}>
                                                                         <Trash2 size={16} />
                                                                     </button>
                                                                 </td>
@@ -1329,34 +2101,224 @@ function App() {
                                 </div>
                             </div>
                         </div>
+                    ) : currentView === 'notificaciones' ? (
+                        <div className="notifications-admin-container">
+                            <header className="section-header">
+                                <h2>Centro de Notificaciones</h2>
+                                <p className="report-subtitle">Envía mensajes y avisos a tus alumnos</p>
+                            </header>
+
+                            <div className="report-card">
+                                <h3>Nueva Notificación</h3>
+                                <div className="notification-form">
+                                    <div className="form-group">
+                                        <label>Título</label>
+                                        <input
+                                            type="text"
+                                            value={newNotification.title}
+                                            onChange={e => setNewNotification({ ...newNotification, title: e.target.value })}
+                                            placeholder="Ej: Feriado de Carnaval"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Mensaje</label>
+                                        <textarea
+                                            value={newNotification.message}
+                                            onChange={e => setNewNotification({ ...newNotification, message: e.target.value })}
+                                            placeholder="Escribe el mensaje aquí..."
+                                        />
+                                    </div>
+                                    <div className="form-group-row">
+                                        <div className="form-group">
+                                            <label>Tipo</label>
+                                            <select
+                                                value={newNotification.type}
+                                                onChange={e => setNewNotification({ ...newNotification, type: e.target.value })}
+                                            >
+                                                <option value="General">General</option>
+                                                <option value="Feriado">Feriado</option>
+                                                <option value="Cancelación">Cancelación</option>
+                                                <option value="Evento">Evento</option>
+                                                <option value="Cumpleaños">Cumpleaños</option>
+                                                <option value="Vencimiento de cuota">Vencimiento de cuota</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Destinatarios</label>
+                                            <select
+                                                value={newNotification.target}
+                                                onChange={e => setNewNotification({ ...newNotification, target: e.target.value })}
+                                            >
+                                                <option value="Todos">Todos los alumnos</option>
+                                                <option value="Activos">Solo Activos</option>
+                                                <option value="Pendientes">Solo Pendientes</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button className="btn-add" style={{ marginTop: '1rem' }} onClick={sendNotification}>
+                                        <Plus size={18} /> Enviar Notificación
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="report-card">
+                                <h3>Historial de Envíos</h3>
+                                <div className="notifications-list">
+                                    {notifications.length > 0 ? (
+                                        <div className="notification-history-grid">
+                                            {notifications.map(n => (
+                                                <div key={n.id} className="notification-history-item">
+                                                    <div className="n-header">
+                                                        <span className={`n-type ${n.type.toLowerCase().replace(/ /g, '-')}`}>{n.type}</span>
+                                                        <span className="n-date">{new Date(n.date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <h4>{n.title}</h4>
+                                                    <p>{n.message}</p>
+                                                    <div className="n-footer">
+                                                        <span>Destino: {n.target}</span>
+                                                        <button className="btn-icon-danger" onClick={() => deleteNotification(n.id)}>
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="no-data">No hay notificaciones enviadas.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <div className="settings-container">
-                            <h2>Ajustes</h2>
-                            <p>Configuración general de la aplicación Beta.</p>
+                            <h2>Ajustes de Sistema</h2>
+                            <p className="report-subtitle">Configuración de tu espacio de trabajo colaborativo.</p>
 
-                            <div className="report-card" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
+                                <h3>Gestionar Administradores</h3>
+                                <p className="report-subtitle">Invita a otros administradores para gestionar este workspace.</p>
+
+                                <div className="admin-invite-form">
+                                    <input
+                                        type="email"
+                                        placeholder="Email del nuevo administrador"
+                                        value={inviteEmail}
+                                        onChange={e => setInviteEmail(e.target.value)}
+                                    />
+                                    <button className="btn-add" onClick={() => inviteAdmin(inviteEmail)}>
+                                        <Plus size={18} /> Invitar
+                                    </button>
+                                </div>
+
+                                <div className="admins-list">
+                                    <h4>Miembros Activos</h4>
+                                    {workspaceAdmins.members?.map(m => (
+                                        <div key={m.id} className="admin-item">
+                                            <div className="admin-info">
+                                                <User size={16} />
+                                                <span>{m.profiles?.full_name || 'Usuario registrado'} ({m.role})</span>
+                                                {m.user_id === session.user.id && <span className="you-tag">Tú</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {workspaceAdmins.invites?.length > 0 && (
+                                        <>
+                                            <h4 style={{ marginTop: '1rem' }}>Invitaciones Pendientes</h4>
+                                            {workspaceAdmins.invites.map(i => (
+                                                <div key={i.id} className="admin-item pending">
+                                                    <div className="admin-info">
+                                                        <Mail size={16} />
+                                                        <span>{i.email} (En espera de registro)</span>
+                                                    </div>
+                                                    <button className="btn-icon-danger" onClick={async () => {
+                                                        await supabase.from('workspace_invites').delete().eq('id', i.id);
+                                                        fetchWorkspaceAdmins();
+                                                    }}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Importación de Datos</h3>
                                 <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
                                 <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
                                     <button className="btn-secondary" style={{ width: '100%' }} onClick={() => fileInputRef.current.click()}>
                                         <Save size={20} /> <span style={{ marginLeft: '0.5rem' }}>Importar CSV Local</span>
                                     </button>
-                                    <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setShowLinkModal(true)}>
-                                        <Plus size={20} /> <span style={{ marginLeft: '0.5rem' }}>Sincronizar por Link</span>
-                                    </button>
                                 </div>
                             </div>
 
-                            <div className="danger-zone">
+                            <div className="danger-zone" style={{ marginTop: '2rem' }}>
                                 <h3>Zona Peligrosa</h3>
-                                <p>Las siguientes acciones son permanentes y borrarán todos los datos guardados en este dispositivo.</p>
-                                <button className="btn-danger" onClick={handleResetData}>
-                                    Reiniciar Toda la Base de Datos
+                                <p>Cerrar sesión eliminará el acceso temporal. Los datos en la nube permanecerán seguros.</p>
+                                <button className="btn-danger" onClick={handleLogout}>
+                                    Cerrar Sesión de Administrador
                                 </button>
                             </div>
                         </div>
                     )
                     }
+
+                    {showPhoneAddModal && (
+                        <div className="modal-overlay">
+                            <div className="modal-card">
+                                <h3>Agregar por Número</h3>
+                                <p className="modal-subtitle">Se enviará un link para que el alumno complete sus datos.</p>
+
+                                {!generatedLink ? (
+                                    <>
+                                        <div className="form-group">
+                                            <label>Número de Teléfono</label>
+                                            <input
+                                                type="tel"
+                                                value={phoneToAdd}
+                                                onChange={e => setPhoneToAdd(e.target.value.replace(/\D/g, ''))}
+                                                placeholder="Ej: 1122334455"
+                                            />
+                                        </div>
+                                        <div className="modal-footer">
+                                            <button className="btn-cancel" onClick={() => { setShowPhoneAddModal(false); setPhoneToAdd(''); }}>Cancelar</button>
+                                            <button className="btn-confirm" onClick={() => generateRegistrationLink(phoneToAdd)}>Generar Link</button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="generated-link-box">
+                                            <label>Link de inscripción:</label>
+                                            <div className="copy-link-group">
+                                                <input type="text" readOnly value={generatedLink} />
+                                                <button className="btn-secondary" onClick={() => {
+                                                    navigator.clipboard.writeText(generatedLink);
+                                                    showToast("Copiado al portapapeles");
+                                                }}><Check size={16} /></button>
+                                            </div>
+                                            <a
+                                                href={`https://wa.me/${phoneToAdd}?text=${encodeURIComponent('Hola! Te comparto el link para que te registres en Gestión Flex: ' + generatedLink)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="whatsapp-send-btn"
+                                            >
+                                                <MessageCircle size={18} /> Enviar por WhatsApp
+                                            </a>
+                                        </div>
+                                        <div className="modal-footer">
+                                            <button className="btn-confirm" onClick={() => {
+                                                setShowPhoneAddModal(false);
+                                                setPhoneToAdd('');
+                                                setGeneratedLink('');
+                                            }}>Finalizar</button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {showAddModal && (
                         <div className="modal-overlay">

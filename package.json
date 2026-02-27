@@ -1,5 +1,5 @@
 {
-  "name": "vn-pilates",
+  "name": "gestion-flex",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.3",
     "lucide-react": "^0.436.0",
