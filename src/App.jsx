@@ -246,29 +246,46 @@ function App() {
                 .select('*')
                 .eq('workspace_id', workspaceId)
                 .eq('config_key', 'personnel_list')
-                .single();
+                .maybeSingle();
 
-            if (configData) {
-                setPersonnelList(configData.config_value || []);
+            if (configData && configData.config_value) {
+                setPersonnelList(Array.isArray(configData.config_value) ? configData.config_value : []);
             } else {
                 const defaultPersonnel = [{ id: '1', name: 'Vanina' }, { id: '2', name: 'Nicki' }];
                 setPersonnelList(defaultPersonnel);
                 // Save defaults
-                await supabase.from('workspace_configs').upsert({
-                    workspace_id: workspaceId,
-                    config_key: 'personnel_list',
-                    config_value: defaultPersonnel
-                });
+                if (workspaceId) {
+                    await supabase.from('workspace_configs').upsert({
+                        workspace_id: workspaceId,
+                        config_key: 'personnel_list',
+                        config_value: defaultPersonnel
+                    });
+                }
             }
 
             // 5. Fetch Salary Data
-            const { data: salData } = await supabase
+            const { data: salData, error: salError } = await supabase
                 .from('workspace_configs')
                 .select('*')
                 .eq('workspace_id', workspaceId)
                 .eq('config_key', 'salary_data')
-                .single();
-            if (salData) setSalaryData(salData.config_value || []);
+                .maybeSingle();
+
+            if (salData && salData.config_value) {
+                let val = salData.config_value;
+                // Migration: if old data was an object {vanni: ..., nicki: ...}, convert it
+                if (!Array.isArray(val) && typeof val === 'object' && val !== null) {
+                    console.log("fetchAppData: Migrating salaryData from object to array...");
+                    const migrated = [];
+                    if (val.vanni) migrated.push({ personId: '1', ...val.vanni });
+                    if (val.nicki) migrated.push({ personId: '2', ...val.nicki });
+                    setSalaryData(migrated);
+                } else {
+                    setSalaryData(Array.isArray(val) ? val : []);
+                }
+            } else {
+                setSalaryData([]);
+            }
 
             setIsLoaded(true);
 
@@ -1063,9 +1080,11 @@ function App() {
 
         // Salary calculations - Dynamic
         let totalHonorarios = 0;
-        salaryData.forEach(d => {
-            totalHonorarios += (d.hours * d.hourlyValue);
-        });
+        if (Array.isArray(salaryData)) {
+            salaryData.forEach(d => {
+                totalHonorarios += (d.hours * d.hourlyValue);
+            });
+        }
 
         // Operational Expenses only (Manual + Planilla)
         const totalExpenses = manualExpenses + autoExpensesValue;
