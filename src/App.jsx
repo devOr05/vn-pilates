@@ -2935,6 +2935,7 @@ function App() {
                                 <div className="form-group">
                                     <label>Recibió</label>
                                     <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
+                                        <option value="">Seleccionar quien recibió</option>
                                         {personnelList.map(p => (
                                             <option key={p.id} value={p.name}>{p.name}</option>
                                         ))}
@@ -2989,6 +2990,7 @@ function App() {
                                     value={newPayment.receivedBy}
                                     onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
                                 >
+                                    <option value="">Seleccionar quien recibió</option>
                                     {personnelList.map(p => (
                                         <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
