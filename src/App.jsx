@@ -1466,61 +1466,112 @@ function App() {
     };
 
     const handleCameraCapture = async () => {
-        if (!videoRef.current) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoRef.current, 0, 0);
+        if (!videoRef.current) {
+            showToast("Error: cámara no disponible", "error");
+            return;
+        }
 
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-        const fileName = `dni_${registrationToken || 'admin'}_${Date.now()}.jpg`;
+        const video = videoRef.current;
+
+        // Guard: video must be playing and have dimensions
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            showToast("La cámara aún no está lista, esperá un segundo e intentá de nuevo", "error");
+            return;
+        }
 
         setOcrLoading(true);
+
         try {
-            const { error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(fileName, blob);
+            // 1. Capture frame to canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
 
-            if (uploadError) throw uploadError;
+            // 2. Get dataURL (always works, no network needed)
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('documents')
-                .getPublicUrl(fileName);
+            // 3. Convert to blob for OCR and upload
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas toBlob returned null')), 'image/jpeg', 0.92);
+            });
 
-            // Intelligent OCR
-            const { data: { text } } = await Tesseract.recognize(blob, 'spa');
-            console.log("OCR Extracted text:", text);
+            stopCamera();
+            setShowCamera(false);
+            showToast("📷 Foto capturada. Procesando OCR...", "info");
 
-            const parsedData = parseDNIText(text);
+            // 4. Try upload to Supabase (non-blocking - won't stop the flow if fails)
+            let savedUrl = dataUrl; // fallback to local dataURL
+            const fileName = `dni_${registrationToken || 'admin'}_${Date.now()}.jpg`;
+            try {
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
 
+                if (!uploadError) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('documents')
+                        .getPublicUrl(fileName);
+                    savedUrl = publicUrl;
+                } else {
+                    console.warn("Upload failed (non-critical):", uploadError.message);
+                }
+            } catch (uploadErr) {
+                console.warn("Upload exception (non-critical):", uploadErr);
+            }
+
+            // 5. Always save the photo URL (local or remote)
+            if (isStudentMode) {
+                setStudentData(prev => ({ ...prev, dniUrl: savedUrl }));
+            } else {
+                setNewStudent(prev => ({ ...prev, dniUrl: savedUrl }));
+            }
+
+            // 6. Run OCR on the blob
+            showToast("🔍 Leyendo DNI con OCR...", "info");
+            let parsedData = {};
+            try {
+                const result = await Tesseract.recognize(blob, 'spa', {
+                    logger: () => { } // suppress verbose logging
+                });
+                const text = result.data.text;
+                console.log("OCR text:", text);
+                parsedData = parseDNIText(text);
+            } catch (ocrErr) {
+                console.error("OCR error:", ocrErr);
+            }
+
+            // 7. Populate form fields (even if empty)
             if (isStudentMode) {
                 setStudentData(prev => ({
                     ...prev,
-                    dniUrl: publicUrl,
-                    ...parsedData
+                    dniUrl: savedUrl,
+                    ...(parsedData.name && { name: parsedData.name }),
+                    ...(parsedData.dni && { dni: parsedData.dni }),
+                    ...(parsedData.birthDate && { birthDate: parsedData.birthDate }),
                 }));
             } else {
                 setNewStudent(prev => ({
                     ...prev,
-                    dniUrl: publicUrl,
+                    dniUrl: savedUrl,
                     name: parsedData.name || prev.name,
                     dni: parsedData.dni || prev.dni,
-                    birthDate: parsedData.birthDate || prev.birthDate
+                    birthDate: parsedData.birthDate || prev.birthDate,
                 }));
             }
 
+            // 8. Always show result feedback
             if (parsedData.dni || parsedData.name) {
-                showToast("¡Captura Exitosa! Datos extraídos correctamente.", "success");
+                showToast(`✅ DNI guardado y datos extraídos: ${parsedData.name || ''} ${parsedData.dni ? '- DNI: ' + parsedData.dni : ''}`, "success");
             } else {
-                showToast("Captura realizada. Algunos datos podrían requerir carga manual.", "info");
+                showToast("📄 Foto del DNI guardada. No se reconocieron datos automáticamente - completá los campos a mano.", "info");
             }
 
-            stopCamera();
-            setShowCamera(false);
         } catch (err) {
-            console.error("Error in capture/OCR:", err);
-            showToast("Error al procesar el documento", "error");
+            console.error("Error in capture:", err);
+            showToast("Error al capturar: " + err.message, "error");
+            setShowCamera(false);
         } finally {
             setOcrLoading(false);
         }
