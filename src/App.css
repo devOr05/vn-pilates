@@ -168,9 +168,18 @@ body {
     gap: 1rem;
 }
 
+.search-filter-group {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
 .search-bar {
     position: relative;
-    width: 100%;
+    flex: 1;
+    min-width: 200px;
 }
 
 .search-icon {
@@ -215,6 +224,27 @@ body {
     gap: 0.5rem;
     cursor: pointer;
     transition: var(--transition);
+    height: 48px;
+}
+
+.btn-secondary {
+    background: white;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: var(--transition);
+    height: 48px;
+}
+
+.btn-secondary:hover {
+    background: var(--accent-light);
+    transform: translateY(-2px);
 }
 
 .btn-save {
@@ -2013,14 +2043,23 @@ body {
 
     .main-header {
         flex-direction: row;
-        height: 80px;
+        height: 100px;
         padding: 0 2rem;
         justify-content: space-between;
         align-items: center;
+        border-bottom: 2px solid var(--bg-main);
+    }
+
+    .search-filter-group {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        flex: 1;
     }
 
     .search-bar {
-        width: 400px;
+        max-width: 450px;
+        flex: 1;
     }
 
     .dashboard {
@@ -2110,6 +2149,24 @@ body {
     border: 1px solid var(--accent);
     border-radius: 8px;
     font-size: 0.9rem;
+}
+
+.edit-input-mini {
+    width: 100px;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    text-align: center;
+    background: var(--bg-main);
+    transition: var(--transition);
+}
+
+.edit-input-mini:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: white;
+    box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 .btn-icon-success {

@@ -42,7 +42,7 @@ function App() {
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentStudentId, setPaymentStudentId] = useState(null);
-    const [newPayment, setNewPayment] = useState({ month: '', amount: '', receivedBy: 'Vanina' });
+    const [newPayment, setNewPayment] = useState({ month: '', amount: '', receivedBy: '' });
     const [sheetLink, setSheetLink] = useState('');
     const [currentView, setCurrentView] = useState('alumnos'); // alumnos | reportes | ajustes
     const [toasts, setToasts] = useState([]);
@@ -125,10 +125,19 @@ function App() {
         console.log("fetchAppData: Starting for user:", user.email);
         try {
             // 1. Get or Create Workspace
-            let { data: workspaceMembers, error: memberError } = await supabase
-                .from('workspace_members')
-                .select('workspace_id, workspaces(*)')
-                .eq('user_id', user.id);
+            let workspaceMembers, memberError;
+            try {
+                const result = await supabase
+                    .from('workspace_members')
+                    .select('workspace_id, workspaces(*)')
+                    .eq('user_id', user.id);
+                workspaceMembers = result.data;
+                memberError = result.error;
+            } catch (e) {
+                console.error("fetchAppData: Critical error querying workspace_members. Does the table exist?", e);
+                setIsInitialLoad(false);
+                return;
+            }
 
             if (memberError) {
                 console.error("fetchAppData: memberError:", memberError);
@@ -231,23 +240,37 @@ function App() {
             setStudents(formattedStudents);
             setIsLoaded(true);
 
-            // 3. Fetch Notifications
-            const { data: notifsData } = await supabase
-                .from('notifications')
+            // 4. Fetch Personnel List from Configs
+            const { data: configData } = await supabase
+                .from('workspace_configs')
                 .select('*')
                 .eq('workspace_id', workspaceId)
-                .order('created_at', { ascending: false });
+                .eq('config_key', 'personnel_list')
+                .single();
 
-            if (notifsData) {
-                setNotifications(notifsData.map(n => ({
-                    id: n.id,
-                    title: n.title,
-                    message: n.message,
-                    type: n.type,
-                    target: n.target,
-                    date: n.created_at
-                })));
+            if (configData) {
+                setPersonnelList(configData.config_value || []);
+            } else {
+                const defaultPersonnel = [{ id: '1', name: 'Vanina' }, { id: '2', name: 'Nicki' }];
+                setPersonnelList(defaultPersonnel);
+                // Save defaults
+                await supabase.from('workspace_configs').upsert({
+                    workspace_id: workspaceId,
+                    config_key: 'personnel_list',
+                    config_value: defaultPersonnel
+                });
             }
+
+            // 5. Fetch Salary Data
+            const { data: salData } = await supabase
+                .from('workspace_configs')
+                .select('*')
+                .eq('workspace_id', workspaceId)
+                .eq('config_key', 'salary_data')
+                .single();
+            if (salData) setSalaryData(salData.config_value || []);
+
+            setIsLoaded(true);
 
             // 4. Fetch Expenses
             const { data: expenses } = await supabase
@@ -519,11 +542,10 @@ function App() {
         }, 3000);
     };
 
-    // Salary/Honorarios State
-    const [salaryData, setSalaryData] = useState({
-        vanni: { hours: 0, hourlyValue: 0, advances: 0 },
-        nicki: { hours: 0, hourlyValue: 0, advances: 0 }
-    });
+    // Salary/Honorarios State - Dynamic Personnel
+    const [salaryData, setSalaryData] = useState([]);
+    const [personnelList, setPersonnelList] = useState([]); // Array of {id, name}
+    const [newPersonName, setNewPersonName] = useState('');
 
     const [newStudent, setNewStudent] = useState({
         name: '',
@@ -587,6 +609,52 @@ function App() {
         const timer = setTimeout(checkExpiries, 5000); // Check 5 seconds after load
         return () => clearTimeout(timer);
     }, [students, notifications]);
+
+    const addPerson = async (name) => {
+        if (!name.trim()) return;
+        const newPerson = { id: Date.now().toString(), name: name.trim() };
+        const updatedList = [...personnelList, newPerson];
+        setPersonnelList(updatedList);
+        setNewPersonName('');
+
+        await supabase.from('workspace_configs').upsert({
+            workspace_id: userWorkspace.id,
+            config_key: 'personnel_list',
+            config_value: updatedList
+        });
+        showToast("Personal agregado");
+    };
+
+    const removePerson = async (id) => {
+        const updatedList = personnelList.filter(p => p.id !== id);
+        setPersonnelList(updatedList);
+        await supabase.from('workspace_configs').upsert({
+            workspace_id: userWorkspace.id,
+            config_key: 'personnel_list',
+            config_value: updatedList
+        });
+        showToast("Personal eliminado", "error");
+    };
+
+    const updateSalary = async (personId, field, value) => {
+        const updatedSalaries = [...salaryData];
+        const index = updatedSalaries.findIndex(s => s.personId === personId);
+        if (index === -1) {
+            updatedSalaries.push({ personId, hours: 0, hourlyValue: 0, advances: 0, [field]: value });
+        } else {
+            updatedSalaries[index] = { ...updatedSalaries[index], [field]: value };
+        }
+        setSalaryData(updatedSalaries);
+    };
+
+    const saveSalaries = async () => {
+        await supabase.from('workspace_configs').upsert({
+            workspace_id: userWorkspace.id,
+            config_key: 'salary_data',
+            config_value: salaryData
+        });
+        showToast("Sueldos actualizados");
+    };
 
     const handleLinkImport = async () => {
         if (!sheetLink) return;
@@ -748,9 +816,16 @@ function App() {
 
             if (window.confirm("¿Deseas generar un link para que el alumno complete sus datos adicionales (DNI, Dirección, etc)?")) {
                 const baseUrl = window.location.origin + window.location.pathname;
-                setGeneratedLink(`${baseUrl}?token=${token}`);
-                setPhoneToAdd('');
+                const fullLink = `${baseUrl}?token=${token}`;
+                setGeneratedLink(fullLink);
+                setPhoneToAdd(newStudent.phone || '');
                 setShowPhoneAddModal(true);
+
+                // Auto-open WhatsApp with welcome message if phone exists
+                if (newStudent.phone) {
+                    const welcomeMsg = encodeURIComponent(`¡Hola ${newStudent.name}! Bienvenid@ a Gestión Flex. Para completar tu inscripción, por favor ingresa a este link: ${fullLink}`);
+                    window.open(`https://wa.me/${newStudent.phone.replace(/\D/g, '')}?text=${welcomeMsg}`, '_blank');
+                }
             } else {
                 showToast("Alumno agregado correctamente");
             }
@@ -787,6 +862,10 @@ function App() {
             const baseUrl = window.location.origin + window.location.pathname;
             const fullLink = `${baseUrl}?token=${token}`;
             setGeneratedLink(fullLink);
+
+            // WhatsApp Welcome
+            const welcomeMsg = encodeURIComponent(`¡Hola! Bienvenid@ a Gestión Flex. Para completar tu inscripción, por favor ingresa a este link: ${fullLink}`);
+            window.open(`https://wa.me/${phone}?text=${welcomeMsg}`, '_blank');
 
             // Refresh
             fetchAppData(session.user);
@@ -883,7 +962,7 @@ function App() {
         const now = new Date();
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         const currentMonth = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
-        setNewPayment({ month: currentMonth, amount: '', receivedBy: 'Vanina' });
+        setNewPayment({ month: currentMonth, amount: '', receivedBy: personnelList[0]?.name || '' });
         setShowPaymentModal(true);
     };
 
@@ -982,10 +1061,11 @@ function App() {
             return acc + amount;
         }, 0);
 
-        // Salary calculations
-        const vanniSalary = salaryData.vanni.hours * salaryData.vanni.hourlyValue;
-        const nickiSalary = salaryData.nicki.hours * salaryData.nicki.hourlyValue;
-        const totalHonorarios = vanniSalary + nickiSalary;
+        // Salary calculations - Dynamic
+        let totalHonorarios = 0;
+        salaryData.forEach(d => {
+            totalHonorarios += (d.hours * d.hourlyValue);
+        });
 
         // Operational Expenses only (Manual + Planilla)
         const totalExpenses = manualExpenses + autoExpensesValue;
@@ -993,7 +1073,7 @@ function App() {
         // User Logic: Net Profit = Income - Operational Expenses (excluding salaries)
         const netProfit = totalMoney - totalExpenses;
 
-        return { totalMoney, totalClasses, vanniMoney, nickiMoney, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios, netProfit };
+        return { totalMoney, totalClasses, totalPayments, activeStudents, averagePerStudent, totalExpenses, totalHonorarios, netProfit };
     };
 
     const totals = calculateTotals();
@@ -1659,8 +1739,9 @@ function App() {
                                     value={newPayment.receivedBy}
                                     onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
                                 >
-                                    <option value="Vanina">Vanina</option>
-                                    <option value="Nicki">Nicki</option>
+                                    {personnelList.map(p => (
+                                        <option key={p.id} value={p.name}>{p.name}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="modal-footer">
@@ -2129,17 +2210,37 @@ function App() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {['vanni', 'nicki'].map(p => {
-                                                const d = salaryData[p];
+                                            {personnelList.map(p => {
+                                                const d = salaryData.find(sd => sd.personId === p.id) || { hours: 0, hourlyValue: 0, advances: 0 };
                                                 const sueldo = d.hours * d.hourlyValue;
                                                 return (
-                                                    <tr key={p}>
-                                                        <td data-label="Personal"><strong>{p.toUpperCase()}</strong></td>
-
-                                                        <td data-label="Horas">{d.hours}hs</td>
-                                                        <td data-label="Valor Hora">$ {d.hourlyValue.toLocaleString()}</td>
+                                                    <tr key={p.id}>
+                                                        <td data-label="Personal"><strong>{p.name.toUpperCase()}</strong></td>
+                                                        <td data-label="Horas">
+                                                            <input
+                                                                type="number"
+                                                                className="edit-input-mini"
+                                                                value={d.hours}
+                                                                onChange={e => updateSalary(p.id, 'hours', parseFloat(e.target.value) || 0)}
+                                                            />
+                                                        </td>
+                                                        <td data-label="Valor Hora">
+                                                            <input
+                                                                type="number"
+                                                                className="edit-input-mini"
+                                                                value={d.hourlyValue}
+                                                                onChange={e => updateSalary(p.id, 'hourlyValue', parseFloat(e.target.value) || 0)}
+                                                            />
+                                                        </td>
                                                         <td data-label="Sueldo Bruto">$ {sueldo.toLocaleString()}</td>
-                                                        <td data-label="Adelanto">$ {d.advances.toLocaleString()}</td>
+                                                        <td data-label="Adelanto">
+                                                            <input
+                                                                type="number"
+                                                                className="edit-input-mini"
+                                                                value={d.advances}
+                                                                onChange={e => updateSalary(p.id, 'advances', parseFloat(e.target.value) || 0)}
+                                                            />
+                                                        </td>
                                                         <td data-label="Resto a Pagar" className="amount-highlight">$ {(sueldo - d.advances).toLocaleString()}</td>
                                                     </tr>
                                                 );
@@ -2147,6 +2248,9 @@ function App() {
                                         </tbody>
                                     </table>
                                 </div>
+                                <button className="btn-add" style={{ marginTop: '1rem' }} onClick={saveSalaries}>
+                                    <Save size={18} /> Guardar Sueldos
+                                </button>
                             </div>
 
                             <div className="report-card honorarios-summary">
@@ -2189,13 +2293,13 @@ function App() {
                                             )}
 
                                             {/* Honorarios rows in Detailed Table */}
-                                            {['vanni', 'nicki'].map(p => {
-                                                const d = salaryData[p];
+                                            {personnelList.map(p => {
+                                                const d = salaryData.find(sd => sd.personId === p.id) || { hours: 0, hourlyValue: 0, advances: 0 };
                                                 const sueldo = d.hours * d.hourlyValue;
                                                 if (sueldo <= 0) return null;
                                                 return (
-                                                    <tr key={`salary-row-${p}`} className="honorario-row-subtle">
-                                                        <td data-label="Concepto"><strong>Honorarios {p.toUpperCase()}</strong></td>
+                                                    <tr key={`salary-row-${p.id}`} className="honorario-row-subtle">
+                                                        <td data-label="Concepto"><strong>Honorarios {p.name.toUpperCase()}</strong></td>
                                                         <td data-label="Monto" className="amount-highlight">$ {sueldo.toLocaleString()}</td>
                                                         <td data-label="Origen/Recibió">Cálculo Auto</td>
                                                         <td data-label="Fecha">{new Date().toLocaleDateString('es-ES')}</td>
@@ -2305,6 +2409,35 @@ function App() {
                         <div className="settings-container">
                             <h2>Ajustes de Sistema</h2>
                             <p className="report-subtitle">Configuración de tu espacio de trabajo colaborativo.</p>
+
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
+                                <h3>Gestionar Personal / Profesores</h3>
+                                <p className="report-subtitle">Agrega o elimina personal para el registro de pagos y sueldos.</p>
+                                <div className="admin-invite-form">
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre del profesor"
+                                        value={newPersonName}
+                                        onChange={e => setNewPersonName(e.target.value)}
+                                    />
+                                    <button className="btn-add" onClick={() => addPerson(newPersonName)}>
+                                        <Plus size={18} /> Agregar
+                                    </button>
+                                </div>
+                                <div className="admins-list">
+                                    {personnelList.map(p => (
+                                        <div key={p.id} className="admin-item">
+                                            <div className="admin-info">
+                                                <User size={16} />
+                                                <span>{p.name}</span>
+                                            </div>
+                                            <button className="btn-icon-danger" onClick={() => removePerson(p.id)}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Gestionar Administradores</h3>
