@@ -263,11 +263,16 @@ function App() {
                 .from('workspace_configs')
                 .select('*')
                 .eq('workspace_id', workspaceId)
-                .eq('config_key', 'personnel_list')
-                .maybeSingle();
+                .in('config_key', ['personnel_list', 'disciplines', 'schedules']);
 
-            if (configData && configData.config_value) {
-                setPersonnelList(Array.isArray(configData.config_value) ? configData.config_value : []);
+            if (configData && configData.length > 0) {
+                const pList = configData.find(c => c.config_key === 'personnel_list');
+                const dList = configData.find(c => c.config_key === 'disciplines');
+                const sList = configData.find(c => c.config_key === 'schedules');
+
+                if (pList) setPersonnelList(Array.isArray(pList.config_value) ? pList.config_value : []);
+                if (dList) setDisciplines(Array.isArray(dList.config_value) ? dList.config_value : []);
+                if (sList) setSchedules(Array.isArray(sList.config_value) ? sList.config_value : []);
             } else {
                 setPersonnelList([]);
             }
@@ -284,16 +289,7 @@ function App() {
 
             if (salData && salData.config_value) {
                 let val = salData.config_value;
-                // Migration: if old data was an object {vanni: ..., nicki: ...}, convert it
-                if (!Array.isArray(val) && typeof val === 'object' && val !== null) {
-                    console.log("fetchAppData: Migrating salaryData from object to array...");
-                    const migrated = [];
-                    if (val.vanni) migrated.push({ personId: '1', ...val.vanni });
-                    if (val.nicki) migrated.push({ personId: '2', ...val.nicki });
-                    setSalaryData(migrated);
-                } else {
-                    setSalaryData(Array.isArray(val) ? val : []);
-                }
+                setSalaryData(Array.isArray(val) ? val : []);
             } else {
                 setSalaryData([]);
             }
@@ -757,13 +753,9 @@ function App() {
     };
 
     const removePerson = async (id) => {
-        const updatedList = personnelList.filter(p => p.id !== id);
-        setPersonnelList(updatedList);
-        await supabase.from('workspace_configs').upsert({
-            workspace_id: userWorkspace.id,
-            config_key: 'personnel_list',
-            config_value: updatedList
-        });
+        const newList = personnelList.filter(p => p.id !== id);
+        setPersonnelList(newList);
+        await saveConfigArray('personnel_list', newList);
         showToast("Personal eliminado", "error");
     };
 
@@ -896,7 +888,9 @@ function App() {
                 birth_date: newStudent.birthDate || null,
                 dni_url: newStudent.dniUrl || null,
                 status: 'activo',
-                registration_token: token
+                registration_token: token,
+                disciplina: newStudent.disciplina,
+                horario: newStudent.horario
             };
 
             const { data: insertedStudent, error } = await supabase
@@ -1191,7 +1185,9 @@ function App() {
                     dni: selectedStudent.dni,
                     birth_date: selectedStudent.birthDate,
                     address: selectedStudent.address,
-                    physical_aptitude_url: selectedStudent.physicalAptitudeUrl
+                    physical_aptitude_url: selectedStudent.physicalAptitudeUrl,
+                    disciplina: selectedStudent.disciplina,
+                    horario: selectedStudent.horario
                 })
                 .eq('id', selectedStudent.id);
 
@@ -1732,6 +1728,7 @@ function App() {
             };
 
             setStudents([mapped]);
+            setCurrentStudent(mapped);
             setStudentStep(3); // Go to dashboard
             showToast('¡Registro completado! Bienvenid@.', 'success');
         } catch (err) {
@@ -1852,7 +1849,7 @@ function App() {
             <div className="student-app-container">
                 <header className="student-header">
                     <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
-                    <span className="welcome-msg">Hola, {currentStudent.name.split(' ')[0]}</span>
+                    <span className="welcome-msg">Hola, {(studentData.name.trim() || currentStudent?.name || '').split(' ')[0]}</span>
                 </header>
 
                 <main className="student-main">
@@ -2254,6 +2251,32 @@ function App() {
                                                 onChange={(e) => updateStudentField('phone', e.target.value)}
                                                 placeholder="Telefono..."
                                             />
+                                        </div>
+                                        <div className="badge-input">
+                                            <label>Disciplina:</label>
+                                            <select
+                                                value={selectedStudent.disciplina || ''}
+                                                onChange={(e) => updateStudentField('disciplina', e.target.value)}
+                                                style={{ width: '100%', padding: '0.25rem', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#f8fafc', fontSize: '0.85rem' }}
+                                            >
+                                                <option value="">Ninguna</option>
+                                                {disciplines.map(d => (
+                                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="badge-input">
+                                            <label>Horario:</label>
+                                            <select
+                                                value={selectedStudent.horario || ''}
+                                                onChange={(e) => updateStudentField('horario', e.target.value)}
+                                                style={{ width: '100%', padding: '0.25rem', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#f8fafc', fontSize: '0.85rem' }}
+                                            >
+                                                <option value="">Ninguno</option>
+                                                {schedules.map(s => (
+                                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -3008,6 +3031,63 @@ function App() {
                             </div>
 
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
+                                <h3>Gestionar Disciplinas</h3>
+                                <p className="report-subtitle">Agrega las actividades o disciplinas que se dictan en tu espacio.</p>
+                                <div className="admin-invite-form">
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Pilates Reformer"
+                                        value={newDiscipline}
+                                        onChange={e => setNewDiscipline(e.target.value)}
+                                    />
+                                    <button className="btn-add" onClick={() => addDiscipline(newDiscipline)}>
+                                        <Plus size={18} /> Agregar
+                                    </button>
+                                </div>
+                                <div className="admins-list">
+                                    {disciplines.length > 0 ? disciplines.map(d => (
+                                        <div key={d.id} className="admin-item">
+                                            <div className="admin-info">
+                                                <span className="n-type general" style={{ borderRadius: '50%', width: '10px', height: '10px', padding: 0 }}></span>
+                                                <span>{d.name}</span>
+                                            </div>
+                                            <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )) : <p className="no-data">La lista está vacía. Añade disciplinas.</p>}
+                                </div>
+                            </div>
+
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
+                                <h3>Gestionar Horarios</h3>
+                                <p className="report-subtitle">Agrega los bloques horarios para que los {getLabel(true).toLowerCase()} seleccionen su turno principal.</p>
+                                <div className="admin-invite-form">
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Tarde (14:00 - 18:00) o Martes y Jueves 15hs"
+                                        value={newSchedule}
+                                        onChange={e => setNewSchedule(e.target.value)}
+                                    />
+                                    <button className="btn-add" onClick={() => addSchedule(newSchedule)}>
+                                        <Plus size={18} /> Agregar
+                                    </button>
+                                </div>
+                                <div className="admins-list">
+                                    {schedules.length > 0 ? schedules.map(s => (
+                                        <div key={s.id} className="admin-item">
+                                            <div className="admin-info">
+                                                <span>🕒 {s.name}</span>
+                                            </div>
+                                            <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )) : <p className="no-data">La lista está vacía. Añade horarios.</p>}
+                                </div>
+                            </div>
+
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Importación de Datos</h3>
                                 <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
                                 <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
@@ -3200,6 +3280,33 @@ function App() {
                                     }}
                                     placeholder="Ej: 1122334455"
                                 />
+                            </div>
+
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>Disciplina</label>
+                                    <select
+                                        value={newStudent.disciplina || ''}
+                                        onChange={e => setNewStudent({ ...newStudent, disciplina: e.target.value })}
+                                    >
+                                        <option value="">Seleccionar Disciplina</option>
+                                        {disciplines.map(d => (
+                                            <option key={d.id} value={d.name}>{d.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Horario Preferido</label>
+                                    <select
+                                        value={newStudent.horario || ''}
+                                        onChange={e => setNewStudent({ ...newStudent, horario: e.target.value })}
+                                    >
+                                        <option value="">Seleccionar Horario</option>
+                                        {schedules.map(s => (
+                                            <option key={s.id} value={s.name}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="form-divider">Primer Pago (Opcional)</div>
