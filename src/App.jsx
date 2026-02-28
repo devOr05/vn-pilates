@@ -1666,67 +1666,57 @@ function App() {
         }
     };
 
+    const [registrationLoading, setRegistrationLoading] = React.useState(false);
+
     const finishStudentRegistration = async () => {
+        if (!registrationToken) {
+            alert('Error: no se encontró el token de acceso. Verificá el link.');
+            return;
+        }
+
+        setRegistrationLoading(true);
         try {
-            // In student mode, the loaded student is in the students array (populated by fetchStudentData)
-            // Use registrationToken to find them, with a direct DB fetch as fallback
-            let studentToUpdate = students.find(s => s.registrationToken === registrationToken);
-
-            if (!studentToUpdate) {
-                // Fallback: fetch directly from DB by token
-                const { data: dbStudent, error: dbErr } = await supabase
-                    .from('students')
-                    .select('id, name, classes_per_week')
-                    .eq('registration_token', registrationToken)
-                    .single();
-                if (dbErr || !dbStudent) throw new Error('No se encontró el registro del alumno');
-                studentToUpdate = { id: dbStudent.id, name: dbStudent.name, classesPerWeek: dbStudent.classes_per_week };
-            }
-
-            const { error } = await supabase
+            // UPDATE directly using the token - no need to find the student first
+            const { data: updated, error } = await supabase
                 .from('students')
                 .update({
-                    name: studentData.name || studentToUpdate.name,
-                    dni: studentData.dni,
-                    birth_date: studentData.birthDate,
-                    address: studentData.address,
-                    physical_aptitude_url: studentData.physicalAptitudeUrl,
-                    dni_url: studentData.dniUrl,
-                    disciplina: studentData.disciplina,
-                    horario: studentData.horario,
-                    classes_per_week: parseInt(studentData.classes_per_week || studentToUpdate.classesPerWeek),
+                    name: studentData.name || undefined,
+                    dni: studentData.dni || null,
+                    birth_date: studentData.birthDate || null,
+                    address: studentData.address || null,
+                    physical_aptitude_url: studentData.physicalAptitudeUrl || null,
+                    dni_url: studentData.dniUrl || null,
+                    disciplina: studentData.disciplina || null,
+                    horario: studentData.horario || null,
                     status: 'activo',
-                    registration_token: null // Consume token
+                    registration_token: null,
                 })
-                .eq('id', studentToUpdate.id);
-
-            if (error) throw error;
-
-            // Fetch the updated student by ID
-            const { data: updatedStudent, error: fetchError } = await supabase
-                .from('students')
+                .eq('registration_token', registrationToken)
                 .select('*, payments(*)')
-                .eq('id', studentToUpdate.id)
                 .single();
 
-            if (fetchError) throw fetchError;
+            if (error) {
+                console.error('finishStudentRegistration supabase error:', error);
+                alert('Error al guardar: ' + error.message);
+                return;
+            }
 
-            // Map the updated student data into React state
+            // Update students state with the saved data
             const mapped = {
-                id: updatedStudent.id,
-                name: updatedStudent.name,
-                dni: updatedStudent.dni,
-                birthDate: updatedStudent.birth_date,
-                address: updatedStudent.address,
-                physicalAptitudeUrl: updatedStudent.physical_aptitude_url,
-                dniUrl: updatedStudent.dni_url,
-                disciplina: updatedStudent.disciplina,
-                horario: updatedStudent.horario,
-                classesPerWeek: updatedStudent.classes_per_week,
-                status: updatedStudent.status,
-                entryDate: updatedStudent.entry_date,
+                id: updated.id,
+                name: updated.name,
+                dni: updated.dni,
+                birthDate: updated.birth_date,
+                address: updated.address,
+                physicalAptitudeUrl: updated.physical_aptitude_url,
+                dniUrl: updated.dni_url,
+                disciplina: updated.disciplina,
+                horario: updated.horario,
+                classesPerWeek: updated.classes_per_week,
+                status: updated.status,
+                entryDate: updated.entry_date,
                 registrationToken: null,
-                history: (updatedStudent.payments || []).map(p => ({
+                history: (updated.payments || []).map(p => ({
                     id: p.id,
                     month: p.month,
                     amount: p.amount?.toString(),
@@ -1735,12 +1725,14 @@ function App() {
                 }))
             };
 
-            setStudents(prev => prev.map(s => s.id === mapped.id ? mapped : s));
-            showToast("¡Registro completado con éxito! Bienvenid@.", "success");
+            setStudents([mapped]);
             setStudentStep(3); // Go to dashboard
-        } catch (error) {
-            console.error("Error finishing registration:", error);
-            showToast("Error al completar el registro: " + error.message, "error");
+            showToast('¡Registro completado! Bienvenid@.', 'success');
+        } catch (err) {
+            console.error('finishStudentRegistration exception:', err);
+            alert('Error inesperado: ' + err.message);
+        } finally {
+            setRegistrationLoading(false);
         }
     };
 
@@ -1956,7 +1948,14 @@ function App() {
                                 </div>
                                 <div className="btn-group-row">
                                     <button className="btn-cancel" onClick={() => setStudentStep(1)}>Atrás</button>
-                                    <button className="btn-confirm" onClick={finishStudentRegistration}>Finalizar Registro</button>
+                                    <button
+                                        className="btn-confirm"
+                                        onClick={finishStudentRegistration}
+                                        disabled={registrationLoading}
+                                        style={{ opacity: registrationLoading ? 0.7 : 1 }}
+                                    >
+                                        {registrationLoading ? '⏳ Guardando...' : 'Finalizar Registro'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
