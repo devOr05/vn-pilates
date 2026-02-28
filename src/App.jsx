@@ -82,6 +82,7 @@ function App() {
     const [ocrLoading, setOcrLoading] = useState(false);
 
     const [userWorkspace, setUserWorkspace] = useState(null);
+    const [showResend, setShowResend] = useState(false);
 
     useEffect(() => {
         console.log("Auth Effect: Initializing...");
@@ -330,9 +331,30 @@ function App() {
             console.error("handleAuth: Exception:", error);
             if (error.message.includes('Email not confirmed')) {
                 showToast("Debes confirmar tu email antes de entrar. Revisa tu bandeja de entrada (y spam).", "error");
+                setShowResend(true);
             } else {
                 showToast(error.message, "error");
             }
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleResendConfirmation = async () => {
+        setAuthLoading(true);
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: authEmail,
+                options: {
+                    emailRedirectTo: window.location.origin
+                }
+            });
+            if (error) throw error;
+            showToast("Email de confirmación reenviado. Revisa tu correo.", "success");
+            setShowResend(false);
+        } catch (error) {
+            showToast(error.message, "error");
         } finally {
             setAuthLoading(false);
         }
@@ -1288,6 +1310,18 @@ function App() {
                         <button className="btn-confirm-full" type="submit" disabled={authLoading}>
                             {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
                         </button>
+
+                        {showResend && authMode === 'login' && (
+                            <button
+                                type="button"
+                                className="btn-secondary-full"
+                                style={{ marginTop: '1rem', background: '#f8fafc', border: '1px solid var(--border)' }}
+                                onClick={handleResendConfirmation}
+                                disabled={authLoading}
+                            >
+                                <Mail size={16} /> Reenviar Email de Confirmación
+                            </button>
+                        )}
                     </form>
 
                     <div className="auth-footer">
