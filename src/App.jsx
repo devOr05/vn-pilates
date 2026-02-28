@@ -870,7 +870,7 @@ function App() {
             // Refresh app data
             fetchAppData(session.user);
 
-            setNewStudent({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0], phone: '', initialAmount: '', initialReceiver: 'Vanina' });
+            setNewStudent({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0], phone: '', initialAmount: '', initialReceiver: '' });
             setShowAddModal(false);
 
             if (window.confirm("¿Deseas generar un link para que el alumno complete sus datos adicionales (DNI, Dirección, etc)?")) {
@@ -1157,8 +1157,6 @@ function App() {
     const calculateTotals = () => {
         let totalMoney = 0;
         let totalClasses = 0;
-        let vanniMoney = 0;
-        let nickiMoney = 0;
         let totalPayments = 0;
 
         students.forEach(s => {
@@ -1167,8 +1165,6 @@ function App() {
                 const amount = cleanMoneyString(h.amount);
                 totalMoney += amount;
                 totalPayments++;
-                if (h.receivedBy?.toLowerCase().includes('vani')) vanniMoney += amount;
-                if (h.receivedBy?.toLowerCase().includes('nic')) nickiMoney += amount;
             });
         });
 
@@ -1298,9 +1294,7 @@ function App() {
         const financialData = [
             ["Recaudación Total", `$${totals.totalMoney.toLocaleString()}`],
             ["Total Alumnos", students.length.toString()],
-            ["Total Clases por Sem.", totals.totalClasses.toString()],
-            ["Recibió Vanni", `$${totals.vanniMoney.toLocaleString()}`],
-            ["Recibió Nicki", `$${totals.nickiMoney.toLocaleString()}`]
+            ["Total Clases por Sem.", totals.totalClasses.toString()]
         ];
 
         doc.autoTable({

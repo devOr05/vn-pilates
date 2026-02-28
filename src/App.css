@@ -1385,13 +1385,7 @@ body {
     background: var(--bg-main);
 }
 
-.receiver-stat.vanni {
-    border-left: 4px solid #6366f1;
-}
 
-.receiver-stat.nicki {
-    border-left: 4px solid #10b981;
-}
 
 .receiver-stat label {
     font-size: 0.75rem;
@@ -1426,13 +1420,7 @@ body {
     gap: 1.5rem;
 }
 
-.salary-card.vanni {
-    border-top: 4px solid var(--accent);
-}
 
-.salary-card.nicki {
-    border-top: 4px solid #10b981;
-}
 
 .salary-inputs {
     display: flex;
