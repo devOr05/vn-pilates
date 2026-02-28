@@ -612,6 +612,12 @@ function App() {
     const [editAdminName, setEditAdminName] = useState('');
     const [newPersonName, setNewPersonName] = useState('');
 
+    // Disciplines & Schedules (admin-configurable, student selects from these)
+    const [disciplines, setDisciplines] = useState(['Pilates Reformer', 'Yoga', 'Funcional']);
+    const [schedules, setSchedules] = useState(['Mañana (8:00 - 12:00)', 'Tarde (14:00 - 18:00)', 'Noche (18:00 - 21:00)']);
+    const [newDiscipline, setNewDiscipline] = useState('');
+    const [newSchedule, setNewSchedule] = useState('');
+
     const [newStudent, setNewStudent] = useState({
         name: '',
         classesPerWeek: '2',
@@ -3159,20 +3165,6 @@ function App() {
                                     />
                                 </div>
                             </div>
-                            <div className="form-group">
-                                <label>Teléfono (Opcional)</label>
-                                <input
-                                    type="tel"
-                                    value={newStudent.phone}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        if (val === '' || /^[0-9+\-(){}\s]*$/.test(val)) {
-                                            setNewStudent({ ...newStudent, phone: val });
-                                        }
-                                    }}
-                                    placeholder="Ej: 1122334455"
-                                />
-                            </div>
 
                             <div className="form-group-row">
                                 <div className="form-group">
@@ -3193,6 +3185,21 @@ function App() {
                                         onChange={e => setNewStudent({ ...newStudent, birthDate: e.target.value })}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Teléfono (Opcional)</label>
+                                <input
+                                    type="tel"
+                                    value={newStudent.phone}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === '' || /^[0-9+\-(){}\s]*$/.test(val)) {
+                                            setNewStudent({ ...newStudent, phone: val });
+                                        }
+                                    }}
+                                    placeholder="Ej: 1122334455"
+                                />
                             </div>
 
                             <div className="form-divider">Primer Pago (Opcional)</div>
