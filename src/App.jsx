@@ -1785,24 +1785,6 @@ function App() {
                                 <span>o completa manualmente</span>
                             </div>
 
-                            {showCamera && (
-                                <div className="camera-overlay">
-                                    <video ref={videoRef} autoPlay playsInline />
-                                    <div className="camera-controls">
-                                        <button className="btn-confirm" onClick={handleCameraCapture} disabled={ocrLoading}>
-                                            {ocrLoading ? 'Procesando...' : 'Capturar DNI'}
-                                        </button>
-                                        <button className="btn-cancel" onClick={() => setShowCamera(false)}>Cerrar</button>
-                                    </div>
-                                    {ocrLoading && (
-                                        <div className="ocr-loading-overlay">
-                                            <div className="ocr-spinner"></div>
-                                            <span>Analizando Documento...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
                             <div className="student-form">
                                 <div className="form-group">
                                     <label>Nombre Completo</label>
@@ -1946,6 +1928,67 @@ function App() {
                         </div>
                     )}
                 </main>
+
+                {/* GLOBAL CAMERA OVERLAY for student mode */}
+                {showCamera && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.92)',
+                        zIndex: 99999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '1rem',
+                        padding: '1rem'
+                    }}>
+                        <p style={{ color: '#a5b4fc', fontWeight: '600', fontSize: '1rem', marginBottom: '0.25rem' }}>
+                            📷 Coloca el DNI frente a la cámara
+                        </p>
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            style={{
+                                width: '100%',
+                                maxWidth: '480px',
+                                borderRadius: '12px',
+                                border: '2px solid #6366f1',
+                                background: '#000'
+                            }}
+                        />
+                        {ocrLoading ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div className="ocr-spinner" />
+                                <span style={{ color: '#fff', fontSize: '0.9rem' }}>Analizando DNI con OCR...</span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                                <button
+                                    style={{
+                                        background: '#6366f1', color: '#fff', border: 'none',
+                                        borderRadius: '8px', padding: '0.75rem 2rem',
+                                        fontSize: '1rem', fontWeight: '600', cursor: 'pointer'
+                                    }}
+                                    onClick={handleCameraCapture}
+                                >
+                                    📸 Capturar DNI
+                                </button>
+                                <button
+                                    style={{
+                                        background: 'transparent', color: '#94a3b8',
+                                        border: '1px solid #334155', borderRadius: '8px',
+                                        padding: '0.75rem 1.5rem', fontSize: '1rem', cursor: 'pointer'
+                                    }}
+                                    onClick={() => setShowCamera(false)}
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
@@ -2969,24 +3012,6 @@ function App() {
                                 <p className="help-text-xs">Escanea el DNI para autocompletar datos</p>
                             </div>
 
-                            {showCamera && (
-                                <div className="camera-overlay">
-                                    <video ref={videoRef} autoPlay playsInline />
-                                    <div className="camera-controls">
-                                        <button className="btn-confirm" onClick={handleCameraCapture} disabled={ocrLoading}>
-                                            {ocrLoading ? 'Procesando...' : 'Capturar DNI'}
-                                        </button>
-                                        <button className="btn-cancel" onClick={() => setShowCamera(false)}>Cerrar</button>
-                                    </div>
-                                    {ocrLoading && (
-                                        <div className="ocr-loading-overlay">
-                                            <div className="ocr-spinner"></div>
-                                            <span>Analizando Documento...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
                             <div className="form-group">
                                 <label>Nombre Completo</label>
                                 <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
@@ -3149,6 +3174,77 @@ function App() {
                     </div>
                 )
             }
+
+            {/* GLOBAL CAMERA OVERLAY - position fixed, always on top */}
+            {showCamera && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.92)',
+                    zIndex: 99999,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '1rem',
+                    padding: '1rem'
+                }}>
+                    <p style={{ color: '#a5b4fc', fontWeight: '600', fontSize: '1rem', marginBottom: '0.25rem' }}>
+                        📷 Coloca el DNI frente a la cámara
+                    </p>
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        style={{
+                            width: '100%',
+                            maxWidth: '480px',
+                            borderRadius: '12px',
+                            border: '2px solid #6366f1',
+                            background: '#000'
+                        }}
+                    />
+                    {ocrLoading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                            <div className="ocr-spinner" />
+                            <span style={{ color: '#fff', fontSize: '0.9rem' }}>Analizando DNI con OCR...</span>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                            <button
+                                style={{
+                                    background: '#6366f1',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '0.75rem 2rem',
+                                    fontSize: '1rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                }}
+                                onClick={handleCameraCapture}
+                            >
+                                📸 Capturar DNI
+                            </button>
+                            <button
+                                style={{
+                                    background: 'transparent',
+                                    color: '#94a3b8',
+                                    border: '1px solid #334155',
+                                    borderRadius: '8px',
+                                    padding: '0.75rem 1.5rem',
+                                    fontSize: '1rem',
+                                    cursor: 'pointer'
+                                }}
+                                onClick={() => setShowCamera(false)}
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="toast-container">
                 {toasts.map(toast => (
                     <div key={toast.id} className={`toast ${toast.type}`}>
