@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import {
     Plus,
@@ -1672,7 +1672,7 @@ function App() {
         }
     };
 
-    const [registrationLoading, setRegistrationLoading] = React.useState(false);
+    const [registrationLoading, setRegistrationLoading] = useState(false);
 
     const finishStudentRegistration = async () => {
         if (!registrationToken) {
