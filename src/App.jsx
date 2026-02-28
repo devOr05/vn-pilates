@@ -2676,12 +2676,12 @@ function App() {
                             </div>
 
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
-                                <h3>Gestionar Personal / Profesores</h3>
+                                <h3>Gestionar Personal / Profesores / Profesional</h3>
                                 <p className="report-subtitle">Agrega o elimina personal para el registro de pagos y sueldos.</p>
                                 <div className="admin-invite-form">
                                     <input
                                         type="text"
-                                        placeholder="Nombre del profesor"
+                                        placeholder="Nombre del profesor / profesional"
                                         value={newPersonName}
                                         onChange={e => setNewPersonName(e.target.value)}
                                     />
