@@ -676,6 +676,8 @@ function App() {
                 setCurrentStudent(formatted);
                 setUserWorkspace(data.workspaces);
                 setClientType(data.workspaces.client_type || 'alumnos');
+                // Also add to students array so other code that does students.find() works
+                setStudents([formatted]);
 
                 // Fetch notifications for this workspace
                 const { data: notifs } = await supabase
@@ -1666,13 +1668,25 @@ function App() {
 
     const finishStudentRegistration = async () => {
         try {
-            const currentStudent = students.find(s => s.registrationToken === registrationToken);
-            if (!currentStudent) throw new Error("No se encontró el registro del alumno");
+            // In student mode, the loaded student is in the students array (populated by fetchStudentData)
+            // Use registrationToken to find them, with a direct DB fetch as fallback
+            let studentToUpdate = students.find(s => s.registrationToken === registrationToken);
+
+            if (!studentToUpdate) {
+                // Fallback: fetch directly from DB by token
+                const { data: dbStudent, error: dbErr } = await supabase
+                    .from('students')
+                    .select('id, name, classes_per_week')
+                    .eq('registration_token', registrationToken)
+                    .single();
+                if (dbErr || !dbStudent) throw new Error('No se encontró el registro del alumno');
+                studentToUpdate = { id: dbStudent.id, name: dbStudent.name, classesPerWeek: dbStudent.classes_per_week };
+            }
 
             const { error } = await supabase
                 .from('students')
                 .update({
-                    name: studentData.name || currentStudent.name,
+                    name: studentData.name || studentToUpdate.name,
                     dni: studentData.dni,
                     birth_date: studentData.birthDate,
                     address: studentData.address,
@@ -1680,19 +1694,19 @@ function App() {
                     dni_url: studentData.dniUrl,
                     disciplina: studentData.disciplina,
                     horario: studentData.horario,
-                    classes_per_week: parseInt(studentData.classes_per_week || currentStudent.classesPerWeek),
+                    classes_per_week: parseInt(studentData.classes_per_week || studentToUpdate.classesPerWeek),
                     status: 'activo',
                     registration_token: null // Consume token
                 })
-                .eq('id', currentStudent.id);
+                .eq('id', studentToUpdate.id);
 
             if (error) throw error;
 
-            // Fetch the updated student by ID (token is now null so we fetch by ID)
+            // Fetch the updated student by ID
             const { data: updatedStudent, error: fetchError } = await supabase
                 .from('students')
                 .select('*, payments(*)')
-                .eq('id', currentStudent.id)
+                .eq('id', studentToUpdate.id)
                 .single();
 
             if (fetchError) throw fetchError;
