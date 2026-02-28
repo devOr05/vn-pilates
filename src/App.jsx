@@ -66,10 +66,12 @@ function App() {
         birthDate: '',
         address: '',
         physicalAptitudeUrl: null,
+        dniUrl: null,
         disciplina: '',
         horario: ''
     });
     const videoRef = useRef(null);
+    const streamRef = useRef(null);
     const [showCamera, setShowCamera] = useState(false);
     const [statusFilter, setStatusFilter] = useState('todos'); // todos | activo | pendiente | inactivo
 
@@ -126,23 +128,22 @@ function App() {
         try {
             // 1. Get or Create Workspace
             let workspaceMembers, memberError;
-            try {
-                const result = await supabase
-                    .from('workspace_members')
-                    .select('workspace_id, workspaces(*)')
-                    .eq('user_id', user.id);
-                workspaceMembers = result.data;
-                memberError = result.error;
-            } catch (e) {
-                console.error("fetchAppData: Critical error querying workspace_members. Does the table exist?", e);
-                setIsInitialLoad(false);
-                return;
-            }
+            const result = await supabase
+                .from('workspace_members')
+                .select('workspace_id, workspaces(*)')
+                .eq('user_id', user.id);
+            workspaceMembers = result.data;
+            memberError = result.error;
 
             if (memberError) {
                 console.error("fetchAppData: memberError:", memberError);
                 throw memberError;
             }
+
+            // Set default "recibido" for modals
+            const adminName = user.user_metadata?.full_name || user.email.split('@')[0];
+            setNewPayment(prev => ({ ...prev, receivedBy: adminName }));
+            setNewStudent(prev => ({ ...prev, initialReceiver: adminName }));
 
             console.log("fetchAppData: workspaceMembers found:", workspaceMembers?.length || 0);
             let workspaceId;
@@ -653,26 +654,6 @@ function App() {
         showToast("Personal eliminado", "error");
     };
 
-    const updateSalary = async (personId, field, value) => {
-        const updatedSalaries = [...salaryData];
-        const index = updatedSalaries.findIndex(s => s.personId === personId);
-        if (index === -1) {
-            updatedSalaries.push({ personId, hours: 0, hourlyValue: 0, advances: 0, [field]: value });
-        } else {
-            updatedSalaries[index] = { ...updatedSalaries[index], [field]: value };
-        }
-        setSalaryData(updatedSalaries);
-    };
-
-    const saveSalaries = async () => {
-        await supabase.from('workspace_configs').upsert({
-            workspace_id: userWorkspace.id,
-            config_key: 'salary_data',
-            config_value: salaryData
-        });
-        showToast("Sueldos actualizados");
-    };
-
     const handleLinkImport = async () => {
         if (!sheetLink) return;
 
@@ -1017,6 +998,37 @@ function App() {
         }
     };
 
+    const updateSalary = (personId, field, value) => {
+        setSalaryData(prev => {
+            const index = prev.findIndex(s => s.personId === personId);
+            if (index === -1) {
+                return [...prev, { personId, hours: 0, hourlyValue: 0, advances: 0, [field]: value }];
+            }
+            const updated = [...prev];
+            updated[index] = { ...updated[index], [field]: value };
+            return updated;
+        });
+    };
+
+    const saveSalaries = async () => {
+        if (!userWorkspace) return;
+        try {
+            const { error } = await supabase
+                .from('workspace_configs')
+                .upsert({
+                    workspace_id: userWorkspace.id,
+                    config_key: 'salary_data',
+                    config_value: salaryData
+                });
+
+            if (error) throw error;
+            showToast("Sueldos guardados correctamente");
+        } catch (error) {
+            console.error("Error saving salaries:", error);
+            showToast("Error al guardar sueldos en la nube", "error");
+        }
+    };
+
     const saveStudentChanges = async () => {
         if (!selectedStudent) return;
         try {
@@ -1135,10 +1147,10 @@ function App() {
             rows.push([]);
             rows.push(["RESUMEN DE HONORARIOS"]);
             rows.push(["PROFESOR", "HORAS", "VALOR HORA", "SUELDO BRUTO", "ADELANTOS", "RESTO A PAGAR"]);
-            ['vanni', 'nicki'].forEach(p => {
-                const d = salaryData[p];
+            personnelList.forEach(p => {
+                const d = salaryData.find(s => s.personId === p.id) || { hours: 0, hourlyValue: 0, advances: 0 };
                 const sueldo = d.hours * d.hourlyValue;
-                rows.push([p.toUpperCase(), d.hours, `$ ${d.hourlyValue.toLocaleString()}`, `$ ${sueldo.toLocaleString()}`, `$ ${d.advances.toLocaleString()}`, `$ ${(sueldo - d.advances).toLocaleString()}`]);
+                rows.push([p.name.toUpperCase(), d.hours, `$ ${d.hourlyValue.toLocaleString()}`, `$ ${sueldo.toLocaleString()}`, `$ ${d.advances.toLocaleString()}`, `$ ${(sueldo - d.advances).toLocaleString()}`]);
             });
 
             // Add Expenses section
@@ -1209,10 +1221,10 @@ function App() {
         doc.setFontSize(14);
         doc.text("Resumen de Honorarios", 14, doc.lastAutoTable.finalY + 15);
         const salaryHeaders = [["Personal", "Horas", "Valor Hora", "Bruto", "Adelanto", "Neto"]];
-        const salaryRows = ['vanni', 'nicki'].map(p => {
-            const d = salaryData[p];
+        const salaryRows = personnelList.map(p => {
+            const d = salaryData.find(s => s.personId === p.id) || { hours: 0, hourlyValue: 0, advances: 0 };
             const sueldo = d.hours * d.hourlyValue;
-            return [p.toUpperCase(), `${d.hours}hs`, `$${d.hourlyValue.toLocaleString()}`, `$${sueldo.toLocaleString()}`, `$${d.advances.toLocaleString()}`, `$${(sueldo - d.advances).toLocaleString()}`];
+            return [p.name.toUpperCase(), `${d.hours}hs`, `$${d.hourlyValue.toLocaleString()}`, `$${sueldo.toLocaleString()}`, `$${d.advances.toLocaleString()}`, `$${(sueldo - d.advances).toLocaleString()}`];
         });
 
         doc.autoTable({
@@ -1292,25 +1304,96 @@ function App() {
         doc.save(`Ficha-${student.name.replace(/\s+/g, '-')}.pdf`);
     };
 
-    const handleCameraCapture = () => {
+    useEffect(() => {
+        if (showCamera) {
+            startCamera();
+        } else {
+            stopCamera();
+        }
+        return () => stopCamera();
+    }, [showCamera]);
+
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                streamRef.current = stream;
+            }
+        } catch (err) {
+            console.error("Error accessing camera:", err);
+            showToast("Error al acceder a la cámara", "error");
+            setShowCamera(false);
+        }
+    };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+    };
+
+    const handleCameraCapture = async () => {
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(videoRef.current, 0, 0);
 
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+        const fileName = `dni_${registrationToken}_${Date.now()}.jpg`;
+
         setOcrLoading(true);
-        setTimeout(() => {
-            setStudentData({
-                ...studentData,
-                dni: '12345678',
-                address: 'Calle Falsa 123',
-                birthDate: '1990-01-01'
-            });
-            setOcrLoading(false);
+        try {
+            const { data, error } = await supabase.storage
+                .from('documents')
+                .upload(fileName, blob);
+
+            if (error) throw error;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('documents')
+                .getPublicUrl(fileName);
+
+            setStudentData(prev => ({
+                ...prev,
+                dniUrl: publicUrl
+            }));
+
+            showToast("Documento capturado correctamente");
             setShowCamera(false);
-            showToast("Datos extraídos correctamente del documento");
-        }, 2000);
+        } catch (err) {
+            console.error("Error uploading capture:", err);
+            showToast("Error al subir captura", "error");
+        } finally {
+            setOcrLoading(false);
+        }
+    };
+
+    const handleFileUploadToStorage = async (file, type) => {
+        if (!file) return;
+        const fileName = `${type}_${registrationToken || Date.now()}_${file.name}`;
+        try {
+            const { data, error } = await supabase.storage
+                .from('documents')
+                .upload(fileName, file);
+
+            if (error) throw error;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('documents')
+                .getPublicUrl(fileName);
+
+            setStudentData(prev => ({
+                ...prev,
+                [type === 'dni' ? 'dniUrl' : 'physicalAptitudeUrl']: publicUrl
+            }));
+            showToast("Archivo subido correctamente");
+        } catch (err) {
+            console.error("Error uploading file:", err);
+            showToast("Error al subir archivo", "error");
+        }
     };
 
     const finishStudentRegistration = async () => {
@@ -1490,8 +1573,21 @@ function App() {
                                     <input type="text" value={studentData.address} onChange={e => setStudentData({ ...studentData, address: e.target.value })} />
                                 </div>
                                 <div className="form-group">
-                                    <label>Apto Físico (Link o descripción)</label>
-                                    <input type="text" value={studentData.physicalAptitudeUrl || ''} onChange={e => setStudentData({ ...studentData, physicalAptitudeUrl: e.target.value })} placeholder="URL a archivo o comentario" />
+                                    <label>Apto Físico (Foto o PDF)</label>
+                                    <div className="file-upload-group">
+                                        <input
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            onChange={e => handleFileUploadToStorage(e.target.files[0], 'apto')}
+                                            id="apto-upload"
+                                            className="hidden-input"
+                                        />
+                                        <label htmlFor="apto-upload" className="btn-secondary-mini">
+                                            {studentData.physicalAptitudeUrl ? <Check size={16} /> : <Plus size={16} />}
+                                            {studentData.physicalAptitudeUrl ? ' Cambiar Archivo' : ' Subir Archivo'}
+                                        </label>
+                                    </div>
+                                    {studentData.physicalAptitudeUrl && <span className="file-success">Archivo listo</span>}
                                 </div>
                                 <button className="btn-confirm-full" onClick={() => setStudentStep(2)}>Siguiente</button>
                             </div>
@@ -1658,6 +1754,20 @@ function App() {
                                     onChange={(e) => updateStudentField('name', e.target.value)}
                                 />
                                 <div className="badges">
+                                    <div className="badge-input">
+                                        <label>DNI:</label>
+                                        <input
+                                            type="text"
+                                            value={selectedStudent.dni || ''}
+                                            onChange={(e) => updateStudentField('dni', e.target.value)}
+                                            placeholder="DNI alumno..."
+                                        />
+                                    </div>
+                                    {selectedStudent.physicalAptitudeUrl && (
+                                        <a href={selectedStudent.physicalAptitudeUrl} target="_blank" rel="noreferrer" className="badge-link">
+                                            <FileText size={14} /> Apto Físico
+                                        </a>
+                                    )}
                                     <div className="badge-input">
                                         <label>Clases/Sem:</label>
                                         <input
@@ -1975,88 +2085,79 @@ function App() {
                                     <span>{new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</span>
                                 </div>
                                 <div className="salary-grid">
-                                    {['vanni', 'nicki'].map(person => {
-                                        const data = salaryData[person];
+                                    {personnelList.map(person => {
+                                        const data = salaryData.find(s => s.personId === person.id) || { hours: 0, hourlyValue: 0, advances: 0 };
                                         const sueldo = data.hours * data.hourlyValue;
                                         const resto = sueldo - data.advances;
                                         return (
-                                            <div key={person} className={`salary-card ${person}`}>
+                                            <div key={person.id} className={`salary-card`}>
                                                 <div className="card-header">
-                                                    <h4>{person.toUpperCase()}</h4>
+                                                    <h4>{person.name.toUpperCase()}</h4>
                                                 </div>
                                                 <div className="salary-inputs">
                                                     <div className="input-group">
                                                         <label>Horas Trabajadas</label>
-                                                        <div className="with-prefix no-symbol">
-                                                            <input
-                                                                type="text"
-                                                                inputMode="decimal"
-                                                                value={data.hours || ''}
-                                                                onChange={e => {
-                                                                    const val = e.target.value.replace(',', '.');
-                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                        setSalaryData({ ...salaryData, [person]: { ...data, hours: parseFloat(val) || 0 } });
-                                                                    }
-                                                                }}
-                                                                placeholder="hs"
-                                                            />
-                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={data.hours || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value.replace(',', '.');
+                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                    updateSalary(person.id, 'hours', parseFloat(val) || 0);
+                                                                }
+                                                            }}
+                                                            placeholder="0 hs"
+                                                        />
                                                     </div>
                                                     <div className="input-group">
-                                                        <label>Valor de la Hora</label>
-                                                        <div className="with-prefix">
-                                                            <span>$</span>
-                                                            <input
-                                                                type="text"
-                                                                inputMode="decimal"
-                                                                value={data.hourlyValue || ''}
-                                                                onChange={e => {
-                                                                    const val = e.target.value.replace(',', '.');
-                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                        setSalaryData({ ...salaryData, [person]: { ...data, hourlyValue: parseFloat(val) || 0 } });
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </div>
+                                                        <label>Valor Hora</label>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={data.hourlyValue || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value.replace(',', '.');
+                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                    updateSalary(person.id, 'hourlyValue', parseFloat(val) || 0);
+                                                                }
+                                                            }}
+                                                            placeholder="$ 0"
+                                                        />
                                                     </div>
                                                     <div className="input-group">
                                                         <label>Adelantos</label>
-                                                        <div className="with-prefix">
-                                                            <span>$</span>
-                                                            <input
-                                                                type="text"
-                                                                inputMode="decimal"
-                                                                value={data.advances || ''}
-                                                                onChange={e => {
-                                                                    const val = e.target.value.replace(',', '.');
-                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                        setSalaryData({ ...salaryData, [person]: { ...data, advances: parseFloat(val) || 0 } });
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={data.advances || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value.replace(',', '.');
+                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                    updateSalary(person.id, 'advances', parseFloat(val) || 0);
+                                                                }
+                                                            }}
+                                                            placeholder="$ 0"
+                                                        />
                                                     </div>
                                                 </div>
                                                 <div className="salary-results">
                                                     <div className="result-row">
                                                         <span>Sueldo Bruto</span>
-                                                        <strong>{sueldo > 0 ? `$${sueldo.toLocaleString()}` : ''}</strong>
+                                                        <strong>{sueldo > 0 ? `$ ${sueldo.toLocaleString()}` : '---'}</strong>
                                                     </div>
                                                     <div className="result-row highlight">
                                                         <span>Resto a pagar</span>
-                                                        <strong>{resto !== 0 ? `$${resto.toLocaleString()}` : ''}</strong>
+                                                        <strong>{resto !== 0 ? `$ ${resto.toLocaleString()}` : '---'}</strong>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    className="btn-save-salary"
-                                                    onClick={() => saveSalaryData(person)}
-                                                >
-                                                    Guardar Datos
-                                                </button>
                                             </div>
                                         );
                                     })}
                                 </div>
+                                <button className="btn-confirm-full" onClick={saveSalaries} style={{ marginTop: '1.5rem' }}>
+                                    <Save size={18} /> Guardar todos los sueldos
+                                </button>
                             </div>
 
                             {/* Gastos Section */}
