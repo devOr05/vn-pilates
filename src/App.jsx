@@ -408,6 +408,49 @@ function App() {
         showToast("Sesión cerrada");
     };
 
+    const handleResetDatabase = async () => {
+        const confirm1 = window.confirm("⚠️ ZONA PELIGROSA: Esta acción eliminará TODOS los alumnos, pagos, notificaciones y gastos de este espacio de trabajo. Esta acción no se puede deshacer.\n\n¿Estás seguro?");
+        if (!confirm1) return;
+        const confirm2 = window.confirm("¿Confirmas que quieres BORRAR TODOS LOS DATOS permanentemente?");
+        if (!confirm2) return;
+        try {
+            const wid = userWorkspace.id;
+            await supabase.from('payments').delete().eq('workspace_id', wid);
+            await supabase.from('notifications').delete().eq('workspace_id', wid);
+            await supabase.from('expenses').delete().eq('workspace_id', wid);
+            await supabase.from('workspace_configs').delete().eq('workspace_id', wid);
+            await supabase.from('personnel').delete().eq('workspace_id', wid);
+            await supabase.from('students').delete().eq('workspace_id', wid);
+            showToast("Base de datos borrada correctamente.", "success");
+            fetchAppData(session.user);
+        } catch (err) {
+            console.error("Error resetting DB:", err);
+            showToast("Error al borrar los datos.", "error");
+        }
+    };
+
+    const handleDeleteAdmin = async () => {
+        const confirm1 = window.confirm("⚠️ ZONA PELIGROSA: Esto eliminará tu cuenta de administrador y TODOS los datos del espacio de trabajo de forma permanente. Esta acción no se puede deshacer.\n\n¿Estás absolutamente seguro?");
+        if (!confirm1) return;
+        const typed = window.prompt("Para confirmar, escribe ELIMINAR:");
+        if (typed !== "ELIMINAR") { showToast("Cancelado. La palabra no coincide.", "info"); return; }
+        try {
+            const wid = userWorkspace.id;
+            await supabase.from('payments').delete().eq('workspace_id', wid);
+            await supabase.from('notifications').delete().eq('workspace_id', wid);
+            await supabase.from('expenses').delete().eq('workspace_id', wid);
+            await supabase.from('workspace_configs').delete().eq('workspace_id', wid);
+            await supabase.from('personnel').delete().eq('workspace_id', wid);
+            await supabase.from('students').delete().eq('workspace_id', wid);
+            await supabase.from('workspace_members').delete().eq('workspace_id', wid);
+            await supabase.from('workspaces').delete().eq('id', wid);
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.error("Error deleting admin:", err);
+            showToast("Error al eliminar la cuenta.", "error");
+        }
+    };
+
     const saveSalaryData = async (person) => {
         try {
             const { error } = await supabase
@@ -2767,11 +2810,32 @@ function App() {
                             </div>
 
                             <div className="danger-zone" style={{ marginTop: '2rem' }}>
-                                <h3>Zona Peligrosa</h3>
-                                <p>Cerrar sesión eliminará el acceso temporal. Los datos en la nube permanecerán seguros.</p>
-                                <button className="btn-danger" onClick={handleLogout}>
-                                    Cerrar Sesión de Administrador
-                                </button>
+                                <h3>⚠️ Zona Peligrosa</h3>
+                                <p>Las siguientes acciones son irreversibles. Procede con precaución.</p>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.25rem' }}>
+                                    <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '1rem' }}>
+                                        <p style={{ fontWeight: '600', marginBottom: '0.4rem' }}>Borrar toda la base de datos</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Elimina todos los alumnos, pagos, notificaciones y gastos. Tu cuenta seguirá activa.</p>
+                                        <button className="btn-danger" onClick={handleResetDatabase}>
+                                            Borrar Base de Datos
+                                        </button>
+                                    </div>
+                                    <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '1rem' }}>
+                                        <p style={{ fontWeight: '600', marginBottom: '0.4rem' }}>Eliminar cuenta de administrador</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Elimina todos los datos y cierra tu cuenta de forma permanente. Deberás escribir ELIMINAR para confirmar.</p>
+                                        <button className="btn-danger" onClick={handleDeleteAdmin}>
+                                            Eliminar Cuenta y Datos
+                                        </button>
+                                    </div>
+                                    <div style={{ background: 'rgba(100,100,100,0.07)', border: '1px solid rgba(100,100,100,0.2)', borderRadius: '8px', padding: '1rem' }}>
+                                        <p style={{ fontWeight: '600', marginBottom: '0.4rem' }}>Cerrar Sesión</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Cierra la sesión actual. Los datos en la nube permanecerán seguros.</p>
+                                        <button className="btn-secondary" onClick={handleLogout}>
+                                            Cerrar Sesión
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
