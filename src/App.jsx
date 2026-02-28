@@ -86,7 +86,15 @@ function App() {
     const [ocrLoading, setOcrLoading] = useState(false);
 
     const [userWorkspace, setUserWorkspace] = useState(null);
+    const [clientType, setClientType] = useState('alumnos'); // alumnos | pacientes
     const [showResend, setShowResend] = useState(false);
+    const [currentStudent, setCurrentStudent] = useState(null);
+
+    // Helpers for dynamic terminology
+    const getLabel = (singular = false) => {
+        if (clientType === 'alumnos') return singular ? 'Alumno' : 'Alumnos';
+        return singular ? 'Paciente' : 'Pacientes';
+    };
 
     useEffect(() => {
         console.log("Auth Effect: Initializing...");
@@ -142,11 +150,11 @@ function App() {
                 throw memberError;
             }
 
-            // Set default "recibido" for modals
-            const adminName = user.user_metadata?.full_name || user.email.split('@')[0];
-            setNewPayment(prev => ({ ...prev, receivedBy: adminName }));
-            setNewStudent(prev => ({ ...prev, initialReceiver: adminName }));
             setEditAdminName(adminName);
+
+            if (workspaceMembers && workspaceMembers.length > 0) {
+                setClientType(workspaceMembers[0].workspaces.client_type || 'alumnos');
+            }
 
             console.log("fetchAppData: workspaceMembers found:", workspaceMembers?.length || 0);
             let workspaceId;
@@ -257,16 +265,7 @@ function App() {
             if (configData && configData.config_value) {
                 setPersonnelList(Array.isArray(configData.config_value) ? configData.config_value : []);
             } else {
-                const defaultPersonnel = [{ id: '1', name: 'Vanina' }, { id: '2', name: 'Nicki' }];
-                setPersonnelList(defaultPersonnel);
-                // Save defaults
-                if (workspaceId) {
-                    await supabase.from('workspace_configs').upsert({
-                        workspace_id: workspaceId,
-                        config_key: 'personnel_list',
-                        config_value: defaultPersonnel
-                    });
-                }
+                setPersonnelList([]);
             }
 
             // 5. Fetch Salary Data
@@ -572,6 +571,12 @@ function App() {
         entryDate: new Date().toISOString().split('T')[0],
         phone: '',
         initialAmount: '',
+        initialReceiver: '',
+        dni: '',
+        birthDate: '',
+        address: '',
+        physicalAptitudeUrl: null,
+        dniUrl: null
     });
     const [expensesData, setExpensesData] = useState([]);
     const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
@@ -587,8 +592,59 @@ function App() {
         if (token) {
             setRegistrationToken(token);
             setIsStudentMode(true);
+            fetchStudentData(token);
         }
     }, []);
+
+    const fetchStudentData = async (token) => {
+        setIsInitialLoad(true);
+        try {
+            const { data, error } = await supabase
+                .from('students')
+                .select('*, payments(*), workspaces(*)')
+                .eq('registration_token', token)
+                .single();
+
+            if (data) {
+                const formatted = {
+                    id: data.id,
+                    name: data.name,
+                    entryDate: data.entry_date,
+                    classesPerWeek: data.classes_per_week,
+                    phone: data.phone,
+                    status: data.status,
+                    registrationToken: data.registration_token,
+                    dni: data.dni,
+                    birthDate: data.birth_date,
+                    address: data.address,
+                    physicalAptitudeUrl: data.physical_aptitude_url,
+                    history: (data.payments || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(p => ({
+                        month: p.month,
+                        amount: p.amount.toString(),
+                        receivedBy: p.received_by,
+                        date: new Date(p.created_at).toLocaleDateString()
+                    }))
+                };
+                setCurrentStudent(formatted);
+                setUserWorkspace(data.workspaces);
+                setClientType(data.workspaces.client_type || 'alumnos');
+
+                // Fetch notifications for this workspace
+                const { data: notifs } = await supabase
+                    .from('notifications')
+                    .select('*')
+                    .eq('workspace_id', data.workspace_id)
+                    .order('created_at', { ascending: false });
+
+                setNotifications(notifs || []);
+                setIsLoaded(true);
+            }
+        } catch (err) {
+            console.error("Error fetching student data:", err);
+        } finally {
+            setIsInitialLoad(false);
+        }
+    };
 
     // Automated Notifications for Fee Expiry
     useEffect(() => {
@@ -1369,6 +1425,7 @@ function App() {
     };
 
     const handleCameraCapture = async () => {
+        if (!videoRef.current) return;
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
@@ -1376,24 +1433,19 @@ function App() {
         ctx.drawImage(videoRef.current, 0, 0);
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-        const fileName = `dni_${registrationToken}_${Date.now()}.jpg`;
+        const fileName = `dni_${registrationToken || 'admin'}_${Date.now()}.jpg`;
 
         setOcrLoading(true);
         try {
-            const { data, error } = await supabase.storage
+            const { error: uploadError } = await supabase.storage
                 .from('documents')
                 .upload(fileName, blob);
 
-            if (error) throw error;
+            if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage
                 .from('documents')
                 .getPublicUrl(fileName);
-
-            setStudentData(prev => ({
-                ...prev,
-                dniUrl: publicUrl
-            }));
 
             // Intelligent OCR
             const { data: { text } } = await Tesseract.recognize(blob, 'spa');
@@ -1401,12 +1453,21 @@ function App() {
 
             const parsedData = parseDNIText(text);
 
-            // Crucial: Update studentData with both the URL and the extracted text
-            setStudentData(prev => ({
-                ...prev,
-                dniUrl: publicUrl,
-                ...parsedData // This includes name, dni, birthDate
-            }));
+            if (isStudentMode) {
+                setStudentData(prev => ({
+                    ...prev,
+                    dniUrl: publicUrl,
+                    ...parsedData
+                }));
+            } else {
+                setNewStudent(prev => ({
+                    ...prev,
+                    dniUrl: publicUrl,
+                    name: parsedData.name || prev.name,
+                    dni: parsedData.dni || prev.dni,
+                    birthDate: parsedData.birthDate || prev.birthDate
+                }));
+            }
 
             if (parsedData.dni || parsedData.name) {
                 showToast("¡Captura Exitosa! Datos extraídos correctamente.", "success");
@@ -1414,7 +1475,6 @@ function App() {
                 showToast("Captura realizada, pero no se detectaron datos automáticos. Por favor, completa manualmente.", "info");
             }
 
-            // Immediately stop camera and return to form
             stopCamera();
             setShowCamera(false);
         } catch (err) {
@@ -1426,44 +1486,38 @@ function App() {
     };
 
     const parseDNIText = (text) => {
-        const lines = text.split('\n');
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         const data = { dni: '', name: '', birthDate: '' };
 
-        // Simple Regex for argentine DNI (8 digits)
+        // 1. DNI (8 digits, optional dots)
         const dniMatch = text.match(/\b\d{2}\.?\d{3}\.?\d{3}\b/);
         if (dniMatch) data.dni = dniMatch[0].replace(/\./g, '');
 
-        // RegEx for Birth Date (DD/MM/YYYY or DD MMM YYYY)
+        // 2. Birth Date (DD/MM/YYYY)
         const dateMatch = text.match(/(\d{2})[/-](\d{2})[/-](\d{4})/);
         if (dateMatch) {
             const [_, day, month, year] = dateMatch;
             data.birthDate = `${year}-${month}-${day}`;
         }
 
-        // Name parsing: Improved Heuristic
-        // Look for lines that look like a Full Name (usually 2-3 words in ALL CAPS)
-        const nameKeywords = ["NOMBRE", "APELLIDO", "APELLIDOS", "NOMRE"];
-        const nameCandidateLine = lines.find((line, idx) => {
+        // 3. Name (Look for APELLIDO/NOMBRE and take following ALL CAPS lines)
+        const nameKeywords = ["APELLIDO", "NOMBRE", "APELLIDOS", "NOMRE", "NOMBRES"];
+        const nameLines = [];
+
+        lines.forEach((line, idx) => {
             const up = line.toUpperCase();
-            if (nameKeywords.some(k => up.includes(k))) {
-                // Check next 2 lines for candidates
-                const next1 = lines[idx + 1] || "";
-                const next2 = lines[idx + 2] || "";
-                if (next1.length > 3 && next1 === next1.toUpperCase() && !nameKeywords.some(k => next1.includes(k))) return true;
-                if (next2.length > 3 && next2 === next2.toUpperCase() && !nameKeywords.some(k => next2.includes(k))) return true;
+            if (nameKeywords.some(k => up.includes(k)) && !up.includes("NACIMIENTO")) {
+                let nextIdx = idx + 1;
+                while (lines[nextIdx] && lines[nextIdx] === lines[nextIdx].toUpperCase() && lines[nextIdx].length > 2 && !nameKeywords.some(k => lines[nextIdx].includes(k))) {
+                    nameLines.push(lines[nextIdx]);
+                    nextIdx++;
+                    if (nameLines.length >= 2) break;
+                }
             }
-            return false;
         });
 
-        if (nameCandidateLine) {
-            const idx = lines.indexOf(nameCandidateLine);
-            const next1 = lines[idx + 1] || "";
-            const next2 = lines[idx + 2] || "";
-            if (next1.length > 3 && next1 === next1.toUpperCase() && !nameKeywords.some(k => next1.includes(k))) {
-                data.name = next1.trim();
-            } else if (next2.length > 3 && next2 === next2.toUpperCase() && !nameKeywords.some(k => next2.includes(k))) {
-                data.name = next2.trim();
-            }
+        if (nameLines.length > 0) {
+            data.name = nameLines.join(' ').trim();
         }
 
         return data;
@@ -1518,9 +1572,9 @@ function App() {
 
             if (error) throw error;
 
-            setStudentStep(3);
-            fetchAppData(session.user);
             showToast("Registro completado con éxito");
+            fetchStudentData(registrationToken);
+            setStudentStep(3);
         } catch (error) {
             console.error("Error finishing registration:", error);
             showToast("Error al completar el registro", "error");
@@ -1806,7 +1860,7 @@ function App() {
             <aside className="sidebar">
                 <div className="logo-section">
                     <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
-                    <span className="beta-label">Gestión inteligente de alumnos</span>
+                    <span className="beta-label">Gestión inteligente de {getLabel().toLowerCase()}</span>
                 </div>
                 <nav className="nav-menu">
                     <div className="nav-group">
@@ -1814,7 +1868,7 @@ function App() {
                             className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
                             onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
                         >
-                            <User size={22} /> <span>Alumnos</span>
+                            <User size={22} /> <span>{getLabel()}</span>
                         </button>
                         <button
                             className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
@@ -1857,7 +1911,7 @@ function App() {
                                 <Search size={18} className="search-icon" />
                                 <input
                                     type="text"
-                                    placeholder="Buscar alumno..."
+                                    placeholder={`Buscar ${getLabel(true).toLowerCase()}...`}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -1878,13 +1932,13 @@ function App() {
                     {currentView === 'alumnos' && !selectedStudent && (
                         <div className="header-actions">
                             <button className="btn-secondary" onClick={() => setShowPhoneAddModal(true)}><Plus size={18} /> Por número</button>
-                            <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
+                            <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo {getLabel(true)}</button>
                         </div>
                     )}
 
                     {selectedStudent && (
                         <div className="header-actions">
-                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
+                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title={`Exportar Ficha ${getLabel(true)} PDF`}>
                                 <FileText size={18} />
                             </button>
                             <button className="btn-secondary" onClick={() => showToast('Módulo de Ficha Médica en desarrollo', 'error')}>
@@ -2535,9 +2589,20 @@ function App() {
                                                     <p>{n.message}</p>
                                                     <div className="n-footer">
                                                         <span>Destino: {n.target}</span>
-                                                        <button className="btn-icon-danger" onClick={() => deleteNotification(n.id)}>
-                                                            <Trash2 size={16} />
-                                                        </button>
+                                                        <div className="n-actions">
+                                                            <a
+                                                                href={`https://wa.me/?text=${encodeURIComponent('*' + n.title + '*\n\n' + n.message)}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="btn-icon-whatsapp"
+                                                                title="Compartir por WhatsApp"
+                                                            >
+                                                                <MessageCircle size={16} />
+                                                            </a>
+                                                            <button className="btn-icon-danger" onClick={() => deleteNotification(n.id)}>
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -2567,6 +2632,30 @@ function App() {
                                         />
                                         <button className="btn-save-mini" onClick={saveWorkspaceBranding}>
                                             <Save size={16} /> Guardar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="form-group" style={{ marginTop: '1rem' }}>
+                                    <label>Modo de Terminología</label>
+                                    <p className="report-subtitle">Cambia cómo se refieren a tus clientes en la app.</p>
+                                    <div className="btn-group-row" style={{ marginTop: '0.5rem' }}>
+                                        <button
+                                            className={`btn-toggle ${clientType === 'alumnos' ? 'active' : ''}`}
+                                            onClick={async () => {
+                                                setClientType('alumnos');
+                                                await supabase.from('workspaces').update({ client_type: 'alumnos' }).eq('id', userWorkspace.id);
+                                            }}
+                                        >
+                                            Alumnos
+                                        </button>
+                                        <button
+                                            className={`btn-toggle ${clientType === 'pacientes' ? 'active' : ''}`}
+                                            onClick={async () => {
+                                                setClientType('pacientes');
+                                                await supabase.from('workspaces').update({ client_type: 'pacientes' }).eq('id', userWorkspace.id);
+                                            }}
+                                        >
+                                            Pacientes
                                         </button>
                                     </div>
                                 </div>
@@ -2683,245 +2772,247 @@ function App() {
                                 </button>
                             </div>
                         </div>
-                    )
-                    }
-
-                    {showPhoneAddModal && (
-                        <div className="modal-overlay">
-                            <div className="modal-card">
-                                <h3>Agregar por Número</h3>
-                                <p className="modal-subtitle">Se enviará un link para que el alumno complete sus datos.</p>
-
-                                {!generatedLink ? (
-                                    <>
-                                        <div className="form-group">
-                                            <label>Número de Teléfono</label>
-                                            <input
-                                                type="tel"
-                                                value={phoneToAdd}
-                                                onChange={e => setPhoneToAdd(e.target.value.replace(/\D/g, ''))}
-                                                placeholder="Ej: 1122334455"
-                                            />
-                                        </div>
-                                        <div className="modal-footer">
-                                            <button className="btn-cancel" onClick={() => { setShowPhoneAddModal(false); setPhoneToAdd(''); }}>Cancelar</button>
-                                            <button className="btn-confirm" onClick={() => generateRegistrationLink(phoneToAdd)}>Generar Link</button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="generated-link-box">
-                                            <label>Link de inscripción:</label>
-                                            <div className="copy-link-group">
-                                                <input type="text" readOnly value={generatedLink} />
-                                                <button className="btn-secondary" onClick={() => {
-                                                    navigator.clipboard.writeText(generatedLink);
-                                                    showToast("Copiado al portapapeles");
-                                                }}><Check size={16} /></button>
-                                            </div>
-                                            <a
-                                                href={`https://wa.me/${phoneToAdd}?text=${encodeURIComponent('Hola! Te comparto el link para que te registres en Gestión Flex: ' + generatedLink)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="whatsapp-send-btn"
-                                            >
-                                                <MessageCircle size={18} /> Enviar por WhatsApp
-                                            </a>
-                                        </div>
-                                        <div className="modal-footer">
-                                            <button className="btn-confirm" onClick={() => {
-                                                setShowPhoneAddModal(false);
-                                                setPhoneToAdd('');
-                                                setGeneratedLink('');
-                                            }}>Finalizar</button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
                     )}
-
-                    {showAddModal && (
-                        <div className="modal-overlay">
-                            <div className="modal-card">
-                                <h3>Nuevo Alumno</h3>
-                                <div className="form-group">
-                                    <label>Nombre Completo</label>
-                                    <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
-                                </div>
-                                <div className="form-group-row">
-                                    <div className="form-group">
-                                        <label>Clases por semana</label>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={newStudent.classesPerWeek}
-                                            onChange={e => {
-                                                const val = e.target.value.replace(/\D/g, '');
-                                                setNewStudent({ ...newStudent, classesPerWeek: val });
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Fecha de Ingreso</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Ej: 21/02/2024"
-                                            value={newStudent.entryDate}
-                                            onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label>Teléfono (Opcional)</label>
-                                    <input
-                                        type="tel"
-                                        value={newStudent.phone}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === '' || /^[0-9+\-()\s]*$/.test(val)) {
-                                                setNewStudent({ ...newStudent, phone: val });
-                                            }
-                                        }}
-                                        placeholder="Ej: 1122334455"
-                                    />
-                                </div>
-
-                                <div className="form-divider">Primer Pago (Opcional)</div>
-
-                                <div className="form-group-row">
-                                    <div className="form-group">
-                                        <label>Monto Recibido</label>
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            value={newStudent.initialAmount || ''}
-                                            onChange={e => {
-                                                const val = e.target.value.replace(',', '.');
-                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                    setNewStudent({ ...newStudent, initialAmount: val });
-                                                }
-                                            }}
-                                            placeholder="Monto"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Recibió</label>
-                                        <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
-                                            {personnelList.map(p => (
-                                                <option key={p.id} value={p.name}>{p.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="modal-footer">
-                                    <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
-                                    <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {
-                        showPaymentModal && (
-                            <div className="modal-overlay">
-                                <div className="modal-card">
-                                    <h3>Registrar Pago</h3>
-                                    <div className="form-group">
-                                        <label>Mes Correspondiente</label>
-                                        <input
-                                            type="text"
-                                            value={newPayment.month}
-                                            onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
-                                            placeholder="Ej: Marzo 2024"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Monto</label>
-                                        <div className="with-prefix">
-                                            <span>$</span>
-                                            <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={newPayment.amount || ''}
-                                                onChange={e => {
-                                                    const val = e.target.value.replace(',', '.');
-                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                        setNewPayment({ ...newPayment, amount: val });
-                                                    }
-                                                }}
-                                                placeholder="Monto"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Recibió</label>
-                                        <select
-                                            value={newPayment.receivedBy}
-                                            onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
-                                        >
-                                            {personnelList.map(p => (
-                                                <option key={p.id} value={p.name}>{p.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="modal-footer">
-                                        <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
-                                        <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )
-                    }
-                    {
-                        showLinkModal && (
-                            <div className="modal-overlay">
-                                <div className="modal-card">
-                                    <h3>Importar desde Link</h3>
-                                    <div className="modal-help-box">
-                                        <p>Para que funcione, sigue estos 2 pasos en tu planilla:</p>
-                                        <ol className="help-steps">
-                                            <li>Haz clic en el botón <strong>Compartir</strong> (arriba a la derecha).</li>
-                                            <li>En "Acceso general", selecciona <strong>"Cualquier persona con el enlace"</strong>.</li>
-                                        </ol>
-                                        <span className="help-note">Esto permite que la aplicación lea los datos sin pedirte login cada vez.</span>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Link de Google Sheets</label>
-                                        <input
-                                            type="text"
-                                            value={sheetLink}
-                                            onChange={e => setSheetLink(e.target.value)}
-                                            placeholder="https://docs.google.com/spreadsheets/d/..."
-                                        />
-                                    </div>
-                                    <div className="modal-footer">
-                                        <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
-                                        <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )
-                    }
-
-                    <div className="toast-container">
-                        {toasts.map(toast => (
-                            <div key={toast.id} className={`toast ${toast.type}`}>
-                                {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-                                <span>{toast.message}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        style={{ display: 'none' }}
-                    />
                 </section>
             </main>
-        </div >
+
+            {
+                showPhoneAddModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Agregar por Número</h3>
+                            <p className="modal-subtitle">Se enviará un link para que el {getLabel(true).toLowerCase()} complete sus datos.</p>
+
+                            {!generatedLink ? (
+                                <>
+                                    <div className="form-group">
+                                        <label>Número de Teléfono</label>
+                                        <input
+                                            type="tel"
+                                            value={phoneToAdd}
+                                            onChange={e => setPhoneToAdd(e.target.value.replace(/\D/g, ''))}
+                                            placeholder="Ej: 1122334455"
+                                        />
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button className="btn-cancel" onClick={() => { setShowPhoneAddModal(false); setPhoneToAdd(''); }}>Cancelar</button>
+                                        <button className="btn-confirm" onClick={() => generateRegistrationLink(phoneToAdd)}>Generar Link</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="generated-link-box">
+                                        <label>Link de inscripción:</label>
+                                        <div className="copy-link-group">
+                                            <input type="text" readOnly value={generatedLink} />
+                                            <button className="btn-secondary" onClick={() => {
+                                                navigator.clipboard.writeText(generatedLink);
+                                                showToast("Copiado al portapapeles");
+                                            }}><Check size={16} /></button>
+                                        </div>
+                                        <a
+                                            href={`https://wa.me/${phoneToAdd}?text=${encodeURIComponent('Hola! Te comparto el link para que te registres en Gestión Flex: ' + generatedLink)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="whatsapp-send-btn"
+                                        >
+                                            <MessageCircle size={18} /> Enviar por WhatsApp
+                                        </a>
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button className="btn-confirm" onClick={() => {
+                                            setShowPhoneAddModal(false);
+                                            setPhoneToAdd('');
+                                            setGeneratedLink('');
+                                        }}>Finalizar</button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                showAddModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Nuevo {getLabel(true)}</h3>
+                            <div className="form-group">
+                                <label>Nombre Completo</label>
+                                <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
+                            </div>
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>Clases por semana</label>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={newStudent.classesPerWeek}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(/\D/g, '');
+                                            setNewStudent({ ...newStudent, classesPerWeek: val });
+                                        }}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Fecha de Ingreso</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: 21/02/2024"
+                                        value={newStudent.entryDate}
+                                        onChange={e => setNewStudent({ ...newStudent, entryDate: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Teléfono (Opcional)</label>
+                                <input
+                                    type="tel"
+                                    value={newStudent.phone}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === '' || /^[0-9+\-()\s]*$/.test(val)) {
+                                            setNewStudent({ ...newStudent, phone: val });
+                                        }
+                                    }}
+                                    placeholder="Ej: 1122334455"
+                                />
+                            </div>
+
+                            <div className="form-divider">Primer Pago (Opcional)</div>
+
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>Monto Recibido</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={newStudent.initialAmount || ''}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(',', '.');
+                                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                setNewStudent({ ...newStudent, initialAmount: val });
+                                            }
+                                        }}
+                                        placeholder="Monto"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Recibió</label>
+                                    <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
+                                        {personnelList.map(p => (
+                                            <option key={p.id} value={p.name}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowAddModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={addStudent}>Agregar Alumno</button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                showPaymentModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Registrar Pago</h3>
+                            <div className="form-group">
+                                <label>Mes Correspondiente</label>
+                                <input
+                                    type="text"
+                                    value={newPayment.month}
+                                    onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
+                                    placeholder="Ej: Marzo 2024"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Monto</label>
+                                <div className="with-prefix">
+                                    <span>$</span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={newPayment.amount || ''}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(',', '.');
+                                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                setNewPayment({ ...newPayment, amount: val });
+                                            }
+                                        }}
+                                        placeholder="Monto"
+                                    />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Recibió</label>
+                                <select
+                                    value={newPayment.receivedBy}
+                                    onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
+                                >
+                                    {personnelList.map(p => (
+                                        <option key={p.id} value={p.name}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            {
+                showLinkModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-card">
+                            <h3>Importar desde Link</h3>
+                            <div className="modal-help-box">
+                                <p>Para que funcione, sigue estos 2 pasos en tu planilla:</p>
+                                <ol className="help-steps">
+                                    <li>Haz clic en el botón <strong>Compartir</strong> (arriba a la derecha).</li>
+                                    <li>En "Acceso general", selecciona <strong>"Cualquier persona con el enlace"</strong>.</li>
+                                </ol>
+                                <span className="help-note">Esto permite que la aplicación lea los datos sin pedirte login cada vez.</span>
+                            </div>
+                            <div className="form-group">
+                                <label>Link de Google Sheets</label>
+                                <input
+                                    type="text"
+                                    value={sheetLink}
+                                    onChange={e => setSheetLink(e.target.value)}
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                />
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
+                                <button className="btn-confirm" onClick={handleLinkImport}>Sincronizar Datos</button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            <div className="toast-container">
+                {toasts.map(toast => (
+                    <div key={toast.id} className={`toast ${toast.type}`}>
+                        {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
+                        <span>{toast.message}</span>
+                    </div>
+                ))}
+            </div>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+            />
+        </div>
     )
 }
 
