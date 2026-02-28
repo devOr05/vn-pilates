@@ -884,6 +884,9 @@ function App() {
                 classes_per_week: parseInt(newStudent.classesPerWeek),
                 entry_date: newStudent.entryDate,
                 phone: newStudent.phone || null,
+                dni: newStudent.dni || null,
+                birth_date: newStudent.birthDate || null,
+                dni_url: newStudent.dniUrl || null,
                 status: 'activo',
                 registration_token: token
             };
@@ -3150,12 +3153,33 @@ function App() {
                                     value={newStudent.phone}
                                     onChange={e => {
                                         const val = e.target.value;
-                                        if (val === '' || /^[0-9+\-()\s]*$/.test(val)) {
+                                        if (val === '' || /^[0-9+\-(){}\s]*$/.test(val)) {
                                             setNewStudent({ ...newStudent, phone: val });
                                         }
                                     }}
                                     placeholder="Ej: 1122334455"
                                 />
+                            </div>
+
+                            <div className="form-group-row">
+                                <div className="form-group">
+                                    <label>DNI</label>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={newStudent.dni || ''}
+                                        onChange={e => setNewStudent({ ...newStudent, dni: e.target.value.replace(/\D/g, '') })}
+                                        placeholder="Número de DNI"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Fecha de Nacimiento</label>
+                                    <input
+                                        type="date"
+                                        value={newStudent.birthDate || ''}
+                                        onChange={e => setNewStudent({ ...newStudent, birthDate: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             <div className="form-divider">Primer Pago (Opcional)</div>
