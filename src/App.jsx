@@ -625,6 +625,7 @@ function App() {
         physicalAptitudeUrl: null,
         dniUrl: null
     });
+    const [capturedDniPreview, setCapturedDniPreview] = useState(''); // instant preview, set sync at capture
     const [expensesData, setExpensesData] = useState([]);
     const [newExpense, setNewExpense] = useState({ description: '', amount: '' });
     const [editingExpenseId, setEditingExpenseId] = useState(null);
@@ -1489,8 +1490,11 @@ function App() {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0);
 
-            // 2. Get dataURL (always works, no network needed)
+            // 2. Get dataURL immediately (synchronous - always works)
             const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+            // Set preview IMMEDIATELY so user sees the photo right away
+            setCapturedDniPreview(dataUrl);
 
             // 3. Convert to blob for OCR and upload
             const blob = await new Promise((resolve, reject) => {
@@ -1850,17 +1854,17 @@ function App() {
                             </div>
 
                             {/* DNI Photo Preview */}
-                            {studentData.dniUrl && (
+                            {capturedDniPreview && (
                                 <div style={{ margin: '0.75rem 0', borderRadius: '10px', overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
                                     <img
-                                        src={studentData.dniUrl}
+                                        src={capturedDniPreview}
                                         alt="Foto DNI"
                                         style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: 'block' }}
                                     />
                                     <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '6px' }}>
                                         <span style={{ background: '#22c55e', color: '#fff', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700' }}>✓ DNI guardado</span>
                                         <button
-                                            onClick={() => setStudentData(prev => ({ ...prev, dniUrl: '' }))}
+                                            onClick={() => { setCapturedDniPreview(''); setStudentData(prev => ({ ...prev, dniUrl: '' })); }}
                                             style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
                                         >✕ Eliminar</button>
                                     </div>
@@ -3095,17 +3099,17 @@ function App() {
                             </div>
 
                             {/* DNI Photo Preview in admin modal */}
-                            {newStudent.dniUrl && (
+                            {capturedDniPreview && (
                                 <div style={{ margin: '0 0 1rem 0', borderRadius: '10px', overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
                                     <img
-                                        src={newStudent.dniUrl}
+                                        src={capturedDniPreview}
                                         alt="Foto DNI"
                                         style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', display: 'block' }}
                                     />
                                     <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '6px' }}>
                                         <span style={{ background: '#22c55e', color: '#fff', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700' }}>✓ DNI guardado</span>
                                         <button
-                                            onClick={() => setNewStudent(prev => ({ ...prev, dniUrl: '' }))}
+                                            onClick={() => { setCapturedDniPreview(''); setNewStudent(prev => ({ ...prev, dniUrl: '' })); }}
                                             style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
                                         >✕ Eliminar</button>
                                     </div>
