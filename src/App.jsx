@@ -150,6 +150,10 @@ function App() {
                 throw memberError;
             }
 
+            // Set default "recibido" for modals
+            const adminName = user.user_metadata?.full_name || user.email.split('@')[0];
+            setNewPayment(prev => ({ ...prev, receivedBy: adminName }));
+            setNewStudent(prev => ({ ...prev, initialReceiver: adminName }));
             setEditAdminName(adminName);
 
             if (workspaceMembers && workspaceMembers.length > 0) {
