@@ -325,7 +325,11 @@ function App() {
             }
         } catch (error) {
             console.error("handleAuth: Exception:", error);
-            showToast(error.message, "error");
+            if (error.message.includes('Email not confirmed')) {
+                showToast("Debes confirmar tu email antes de entrar. Revisa tu bandeja de entrada (y spam).", "error");
+            } else {
+                showToast(error.message, "error");
+            }
         } finally {
             setAuthLoading(false);
         }
