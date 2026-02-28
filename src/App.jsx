@@ -327,24 +327,6 @@ function App() {
                 })));
             }
 
-            // 5. Fetch Salary Configs
-            const { data: configs } = await supabase
-                .from('workspace_configs')
-                .select('*')
-                .eq('workspace_id', workspaceId);
-
-            if (configs) {
-                const newSalaryData = { ...salaryData };
-                configs.forEach(c => {
-                    if (c.config_key.startsWith('salary_')) {
-                        const person = c.config_key.replace('salary_', '');
-                        newSalaryData[person] = c.config_value;
-                    }
-                });
-                setSalaryData(newSalaryData);
-            }
-
-            setIsLoaded(true);
             setIsInitialLoad(false);
             console.log("fetchAppData: Success!");
         } catch (error) {
@@ -1453,13 +1435,29 @@ function App() {
             data.birthDate = `${year}-${month}-${day}`;
         }
 
-        // Name parsing is harder, look for keywords or uppercase lines
-        const nameLine = lines.find(l => l.toUpperCase().includes("APELLIDO") || l.toUpperCase().includes("NOMBRE"));
-        if (nameLine) {
-            // Heuristic: next uppercase line after "Apellido" or similar
-            const idx = lines.indexOf(nameLine);
-            if (lines[idx + 1] && lines[idx + 1] === lines[idx + 1].toUpperCase()) {
-                data.name = lines[idx + 1].trim();
+        // Name parsing: Improved Heuristic
+        // Look for lines that look like a Full Name (usually 2-3 words in ALL CAPS)
+        const nameKeywords = ["NOMBRE", "APELLIDO", "APELLIDOS", "NOMRE"];
+        const nameCandidateLine = lines.find((line, idx) => {
+            const up = line.toUpperCase();
+            if (nameKeywords.some(k => up.includes(k))) {
+                // Check next 2 lines for candidates
+                const next1 = lines[idx + 1] || "";
+                const next2 = lines[idx + 2] || "";
+                if (next1.length > 3 && next1 === next1.toUpperCase() && !nameKeywords.some(k => next1.includes(k))) return true;
+                if (next2.length > 3 && next2 === next2.toUpperCase() && !nameKeywords.some(k => next2.includes(k))) return true;
+            }
+            return false;
+        });
+
+        if (nameCandidateLine) {
+            const idx = lines.indexOf(nameCandidateLine);
+            const next1 = lines[idx + 1] || "";
+            const next2 = lines[idx + 2] || "";
+            if (next1.length > 3 && next1 === next1.toUpperCase() && !nameKeywords.some(k => next1.includes(k))) {
+                data.name = next1.trim();
+            } else if (next2.length > 3 && next2 === next2.toUpperCase() && !nameKeywords.some(k => next2.includes(k))) {
+                data.name = next2.trim();
             }
         }
 
@@ -1494,7 +1492,7 @@ function App() {
     const finishStudentRegistration = async () => {
         try {
             const currentStudent = students.find(s => s.registrationToken === registrationToken);
-            if (!currentStudent) throw new Error("Student not found");
+            if (!currentStudent) throw new Error("No se encontró el registro del alumno");
 
             const { error } = await supabase
                 .from('students')
@@ -1798,219 +1796,6 @@ function App() {
         !s.name.toUpperCase().includes("GASTO") &&
         !s.id.toUpperCase().includes("GASTO")
     );
-
-    if (selectedStudent) {
-        return (
-            <div className="app-container">
-                <aside className="sidebar">
-                    <div className="logo-section">
-                        <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
-                        <span className="beta-label">Gestión inteligente de alumnos</span>
-                    </div>
-                    <nav className="nav-menu">
-                        <div className="nav-group">
-                            <button
-                                className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
-                                onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
-                            >
-                                <User size={22} /> <span>Alumnos</span>
-                            </button>
-                            <button
-                                className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
-                                onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
-                            >
-                                <FileText size={22} /> <span>Reportes</span>
-                            </button>
-                            <button
-                                className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
-                                onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
-                            >
-                                <Settings size={22} /> <span>Ajustes</span>
-                            </button>
-                            <button
-                                className={`nav-item ${currentView === 'notificaciones' ? 'active' : ''}`}
-                                onClick={() => { setCurrentView('notificaciones'); setSelectedStudent(null); }}
-                            >
-                                <Bell size={22} /> <span>Notificaciones</span>
-                            </button>
-                        </div>
-
-                        <div className="nav-group logout-group">
-                            <button className="nav-item btn-logout" onClick={handleLogout}>
-                                <LogOut size={22} /> <span>Cerrar Sesión</span>
-                            </button>
-                        </div>
-
-                    </nav>
-                </aside>
-
-                <main className="main-content">
-                    <header className="main-header">
-                        <button className="btn-back" onClick={() => { setSelectedStudent(null); setSearchTerm(''); }}>
-                            <ChevronLeft size={20} /> Volver al listado
-                        </button>
-                        <div className="header-actions">
-                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
-                                <FileText size={18} />
-                            </button>
-                            <button className="btn-secondary" onClick={() => showToast('Módulo de Ficha Médica en desarrollo', 'error')}>
-                                <span>Ficha Médica</span>
-                            </button>
-                            <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
-                        </div>
-                    </header>
-
-                    <section className="student-profile">
-                        <div className="profile-header">
-                            <div className="avatar">
-                                <User size={40} />
-                            </div>
-                            <div className="profile-info">
-                                <input
-                                    className="edit-name"
-                                    value={selectedStudent.name}
-                                    onChange={(e) => updateStudentField('name', e.target.value)}
-                                />
-                                <div className="badges">
-                                    <div className="badge-input">
-                                        <label>DNI:</label>
-                                        <input
-                                            type="text"
-                                            value={selectedStudent.dni || ''}
-                                            onChange={(e) => updateStudentField('dni', e.target.value)}
-                                            placeholder="DNI alumno..."
-                                        />
-                                    </div>
-                                    {selectedStudent.physicalAptitudeUrl && (
-                                        <a href={selectedStudent.physicalAptitudeUrl} target="_blank" rel="noreferrer" className="badge-link">
-                                            <FileText size={14} /> Apto Físico
-                                        </a>
-                                    )}
-                                    <div className="badge-input">
-                                        <label>Clases/Sem:</label>
-                                        <input
-                                            type="number"
-                                            value={selectedStudent.classesPerWeek}
-                                            onChange={(e) => updateStudentField('classesPerWeek', e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="badge-input">
-                                        <label>Desde:</label>
-                                        <input
-                                            type="text"
-                                            value={selectedStudent.entryDate}
-                                            onChange={(e) => updateStudentField('entryDate', e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="badge-input">
-                                        <label>Tel:</label>
-                                        <input
-                                            type="text"
-                                            value={selectedStudent.phone || ''}
-                                            onChange={(e) => updateStudentField('phone', e.target.value)}
-                                            placeholder="Telefono..."
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="history-section">
-                            <h3>Historial de Pagos</h3>
-                            <div className="history-cards">
-                                {selectedStudent.history.length > 0 ? (
-                                    selectedStudent.history.map((item, idx) => (
-                                        <div key={idx} className="payment-card">
-                                            <div className="card-header">
-                                                <span className="month-tag">{item.month}</span>
-                                                <span className="status-tag paid">Pagado</span>
-                                            </div>
-                                            <div className="card-body">
-                                                <div className="detail">
-                                                    <DollarSign size={16} />
-                                                    <span>{item.amount}</span>
-                                                </div>
-                                                <div className="detail">
-                                                    <User size={16} />
-                                                    <span>Recibió: {item.receivedBy}</span>
-                                                </div>
-                                                {item.date && (
-                                                    <div className="detail">
-                                                        <Calendar size={16} />
-                                                        <span>Fecha: {item.date}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="no-data">Sin historial registrado</p>
-                                )}
-                                <button className="add-payment-card" onClick={() => addPayment(selectedStudent.id)}>
-                                    <Plus size={24} />
-                                    <span>Nuevo Pago</span>
-                                </button>
-                            </div>
-                        </div>
-                    </section>
-                </main>
-
-                {showPaymentModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-card">
-                            <h3>Registrar Pago</h3>
-                            <div className="form-group">
-                                <label>Mes Correspondiente</label>
-                                <input
-                                    type="text"
-                                    value={newPayment.month}
-                                    onChange={e => setNewPayment({ ...newPayment, month: e.target.value })}
-                                    placeholder="Ej: Marzo 2024"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Monto</label>
-                                <div className="with-prefix">
-                                    <span>$</span>
-                                    <input
-                                        type="number"
-                                        value={newPayment.amount || ''}
-                                        onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Recibió</label>
-                                <select
-                                    value={newPayment.receivedBy}
-                                    onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
-                                >
-                                    {personnelList.map(p => (
-                                        <option key={p.id} value={p.name}>{p.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-cancel" onClick={() => setShowPaymentModal(false)}>Cancelar</button>
-                                <button className="btn-confirm" onClick={confirmPayment}>Registrar Pago</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="toast-container">
-                    {toasts.map(toast => (
-                        <div key={toast.id} className={`toast ${toast.type}`}>
-                            {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-                            <span>{toast.message}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="app-container">
             <aside className="sidebar">
@@ -2022,28 +1807,31 @@ function App() {
                     <div className="nav-group">
                         <button
                             className={`nav-item ${currentView === 'alumnos' ? 'active' : ''}`}
-                            onClick={() => setCurrentView('alumnos')}
+                            onClick={() => { setCurrentView('alumnos'); setSelectedStudent(null); }}
                         >
                             <User size={22} /> <span>Alumnos</span>
                         </button>
                         <button
                             className={`nav-item ${currentView === 'reportes' ? 'active' : ''}`}
-                            onClick={() => setCurrentView('reportes')}
+                            onClick={() => { setCurrentView('reportes'); setSelectedStudent(null); }}
                         >
                             <FileText size={22} /> <span>Reportes</span>
                         </button>
                         <button
                             className={`nav-item ${currentView === 'ajustes' ? 'active' : ''}`}
-                            onClick={() => setCurrentView('ajustes')}
+                            onClick={() => { setCurrentView('ajustes'); setSelectedStudent(null); }}
                         >
                             <Settings size={22} /> <span>Ajustes</span>
                         </button>
                         <button
                             className={`nav-item ${currentView === 'notificaciones' ? 'active' : ''}`}
-                            onClick={() => setCurrentView('notificaciones')}
+                            onClick={() => { setCurrentView('notificaciones'); setSelectedStudent(null); }}
                         >
                             <Bell size={22} /> <span>Notificaciones</span>
                         </button>
+                    </div>
+
+                    <div className="nav-group logout-group">
                         <button className="nav-item btn-logout" onClick={handleLogout}>
                             <LogOut size={22} /> <span>Cerrar Sesión</span>
                         </button>
@@ -2054,7 +1842,11 @@ function App() {
 
             <main className="main-content">
                 <header className="main-header">
-                    {currentView === 'alumnos' ? (
+                    {selectedStudent ? (
+                        <button className="btn-back" onClick={() => { setSelectedStudent(null); setSearchTerm(''); }}>
+                            <ChevronLeft size={20} /> Volver al listado
+                        </button>
+                    ) : currentView === 'alumnos' ? (
                         <div className="search-filter-group">
                             <div className="search-bar">
                                 <Search size={18} className="search-icon" />
@@ -2073,19 +1865,127 @@ function App() {
                                     <option value="inactivo">Inactivos</option>
                                 </select>
                             </div>
-                        </div>) : (
-                        <h2>Reportes de Gestión</h2>
+                        </div>
+                    ) : (
+                        <h2>{currentView === 'reportes' ? 'Reportes de Gestión' : currentView === 'notificaciones' ? 'Centro de Notificaciones' : 'Ajustes de Sistema'}</h2>
                     )}
-                    {currentView === 'alumnos' && (
+
+                    {currentView === 'alumnos' && !selectedStudent && (
                         <div className="header-actions">
                             <button className="btn-secondary" onClick={() => setShowPhoneAddModal(true)}><Plus size={18} /> Por número</button>
                             <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo Alumno</button>
                         </div>
                     )}
+
+                    {selectedStudent && (
+                        <div className="header-actions">
+                            <button className="btn-secondary" onClick={() => exportStudentPDF(selectedStudent)} title="Exportar Ficha PDF">
+                                <FileText size={18} />
+                            </button>
+                            <button className="btn-secondary" onClick={() => showToast('Módulo de Ficha Médica en desarrollo', 'error')}>
+                                <span>Ficha Médica</span>
+                            </button>
+                            <button className="btn-save" onClick={saveStudentChanges}><Save size={18} /> Guardar</button>
+                        </div>
+                    )}
                 </header>
 
                 <section className="dashboard">
-                    {currentView === 'alumnos' ? (
+                    {selectedStudent ? (
+                        <section className="student-profile">
+                            <div className="profile-header">
+                                <div className="avatar">
+                                    <User size={40} />
+                                </div>
+                                <div className="profile-info">
+                                    <input
+                                        className="edit-name"
+                                        value={selectedStudent.name}
+                                        onChange={(e) => updateStudentField('name', e.target.value)}
+                                    />
+                                    <div className="badges">
+                                        <div className="badge-input">
+                                            <label>DNI:</label>
+                                            <input
+                                                type="text"
+                                                value={selectedStudent.dni || ''}
+                                                onChange={(e) => updateStudentField('dni', e.target.value)}
+                                                placeholder="DNI alumno..."
+                                            />
+                                        </div>
+                                        {selectedStudent.physicalAptitudeUrl && (
+                                            <a href={selectedStudent.physicalAptitudeUrl} target="_blank" rel="noreferrer" className="badge-link">
+                                                <FileText size={14} /> Apto Físico
+                                            </a>
+                                        )}
+                                        <div className="badge-input">
+                                            <label>Clases/Sem:</label>
+                                            <input
+                                                type="number"
+                                                value={selectedStudent.classesPerWeek}
+                                                onChange={(e) => updateStudentField('classesPerWeek', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="badge-input">
+                                            <label>Desde:</label>
+                                            <input
+                                                type="text"
+                                                value={selectedStudent.entryDate}
+                                                onChange={(e) => updateStudentField('entryDate', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="badge-input">
+                                            <label>Tel:</label>
+                                            <input
+                                                type="text"
+                                                value={selectedStudent.phone || ''}
+                                                onChange={(e) => updateStudentField('phone', e.target.value)}
+                                                placeholder="Telefono..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="history-section">
+                                <h3>Historial de Pagos</h3>
+                                <div className="history-cards">
+                                    {selectedStudent.history.length > 0 ? (
+                                        selectedStudent.history.map((item, idx) => (
+                                            <div key={idx} className="payment-card">
+                                                <div className="card-header">
+                                                    <span className="month-tag">{item.month}</span>
+                                                    <span className="status-tag paid">Pagado</span>
+                                                </div>
+                                                <div className="card-body">
+                                                    <div className="detail">
+                                                        <DollarSign size={16} />
+                                                        <span>{item.amount}</span>
+                                                    </div>
+                                                    <div className="detail">
+                                                        <User size={16} />
+                                                        <span>Recibió: {item.receivedBy}</span>
+                                                    </div>
+                                                    {item.date && (
+                                                        <div className="detail">
+                                                            <Calendar size={16} />
+                                                            <span>Fecha: {item.date}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="no-data">Sin historial registrado</p>
+                                    )}
+                                    <button className="add-payment-card" onClick={() => addPayment(selectedStudent.id)}>
+                                        <Plus size={24} />
+                                        <span>Nuevo Pago</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                    ) : currentView === 'alumnos' ? (
                         <div className="student-list-container">
                             <div className="list-header">
                                 <h3>Listado de Alumnos ({filteredStudents.length})</h3>
@@ -2903,8 +2803,9 @@ function App() {
                                     <div className="form-group">
                                         <label>Recibió</label>
                                         <select value={newStudent.initialReceiver} onChange={e => setNewStudent({ ...newStudent, initialReceiver: e.target.value })}>
-                                            <option value="Vanina">Vanina</option>
-                                            <option value="Nicki">Nicki</option>
+                                            {personnelList.map(p => (
+                                                <option key={p.id} value={p.name}>{p.name}</option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
@@ -2955,8 +2856,9 @@ function App() {
                                             value={newPayment.receivedBy}
                                             onChange={e => setNewPayment({ ...newPayment, receivedBy: e.target.value })}
                                         >
-                                            <option value="Vanina">Vanina</option>
-                                            <option value="Nicki">Nicki</option>
+                                            {personnelList.map(p => (
+                                                <option key={p.id} value={p.name}>{p.name}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="modal-footer">
