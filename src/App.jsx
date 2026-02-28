@@ -1528,21 +1528,34 @@ function App() {
                 setNewStudent(prev => ({ ...prev, dniUrl: savedUrl }));
             }
 
-            // 6. Run OCR on the blob
+            // 6. Run OCR - preprocess image first for better results
             showToast("🔍 Leyendo DNI con OCR...", "info");
             let parsedData = {};
             try {
-                const result = await Tesseract.recognize(blob, 'spa', {
-                    logger: () => { } // suppress verbose logging
+                // Preprocess: create a high-contrast grayscale version of the canvas
+                const processedCanvas = document.createElement('canvas');
+                processedCanvas.width = canvas.width * 2; // upscale for better OCR
+                processedCanvas.height = canvas.height * 2;
+                const pCtx = processedCanvas.getContext('2d');
+                pCtx.filter = 'grayscale(100%) contrast(180%) brightness(110%)';
+                pCtx.drawImage(canvas, 0, 0, processedCanvas.width, processedCanvas.height);
+
+                const processedBlob = await new Promise(resolve =>
+                    processedCanvas.toBlob(resolve, 'image/png')
+                );
+
+                // Try with spa+eng for Argentine DNIs
+                const result = await Tesseract.recognize(processedBlob, 'spa+eng', {
+                    logger: () => { }
                 });
                 const text = result.data.text;
-                console.log("OCR text:", text);
+                console.log("OCR raw text:", JSON.stringify(text));
                 parsedData = parseDNIText(text);
             } catch (ocrErr) {
                 console.error("OCR error:", ocrErr);
             }
 
-            // 7. Populate form fields (even if empty)
+            // 7. Populate form fields
             if (isStudentMode) {
                 setStudentData(prev => ({
                     ...prev,
@@ -1563,9 +1576,9 @@ function App() {
 
             // 8. Always show result feedback
             if (parsedData.dni || parsedData.name) {
-                showToast(`✅ DNI guardado y datos extraídos: ${parsedData.name || ''} ${parsedData.dni ? '- DNI: ' + parsedData.dni : ''}`, "success");
+                showToast(`✅ Datos extraídos: ${[parsedData.name, parsedData.dni].filter(Boolean).join(' · ')}`, "success");
             } else {
-                showToast("📄 Foto del DNI guardada. No se reconocieron datos automáticamente - completá los campos a mano.", "info");
+                showToast("📄 Foto guardada. No se reconocieron datos automáticamente — completá los campos a mano.", "info");
             }
 
         } catch (err) {
@@ -1831,10 +1844,28 @@ function App() {
 
                             <div className="ocr-section">
                                 <button className="btn-ocr" onClick={() => { setIsStudentMode(true); setShowCamera(true); }}>
-                                    <Camera size={20} /> Escanear DNI
+                                    <Camera size={20} /> {studentData.dniUrl ? 'Recapturar DNI' : 'Escanear DNI'}
                                 </button>
                                 <span>o completa manualmente</span>
                             </div>
+
+                            {/* DNI Photo Preview */}
+                            {studentData.dniUrl && (
+                                <div style={{ margin: '0.75rem 0', borderRadius: '10px', overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                                    <img
+                                        src={studentData.dniUrl}
+                                        alt="Foto DNI"
+                                        style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: 'block' }}
+                                    />
+                                    <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '6px' }}>
+                                        <span style={{ background: '#22c55e', color: '#fff', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700' }}>✓ DNI guardado</span>
+                                        <button
+                                            onClick={() => setStudentData(prev => ({ ...prev, dniUrl: '' }))}
+                                            style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
+                                        >✕ Eliminar</button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="student-form">
                                 <div className="form-group">
@@ -3056,12 +3087,30 @@ function App() {
                         <div className="modal-card">
                             <h3>Nuevo {getLabel(true)}</h3>
 
-                            <div className="ocr-section-compact" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                            <div className="ocr-section-compact" style={{ marginBottom: '1rem', textAlign: 'center' }}>
                                 <button className="btn-ocr" onClick={() => { setIsStudentMode(false); setShowCamera(true); }}>
-                                    <Camera size={20} /> Smart DNI Scan
+                                    <Camera size={20} /> {newStudent.dniUrl ? 'Recapturar DNI' : 'Smart DNI Scan'}
                                 </button>
                                 <p className="help-text-xs">Escanea el DNI para autocompletar datos</p>
                             </div>
+
+                            {/* DNI Photo Preview in admin modal */}
+                            {newStudent.dniUrl && (
+                                <div style={{ margin: '0 0 1rem 0', borderRadius: '10px', overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                                    <img
+                                        src={newStudent.dniUrl}
+                                        alt="Foto DNI"
+                                        style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', display: 'block' }}
+                                    />
+                                    <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '6px' }}>
+                                        <span style={{ background: '#22c55e', color: '#fff', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700' }}>✓ DNI guardado</span>
+                                        <button
+                                            onClick={() => setNewStudent(prev => ({ ...prev, dniUrl: '' }))}
+                                            style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', padding: '2px 8px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
+                                        >✕ Eliminar</button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <label>Nombre Completo</label>
