@@ -32,6 +32,7 @@ import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
+import Tesseract from 'tesseract.js';
 
 function App() {
     const [students, setStudents] = useState([]);
@@ -62,6 +63,7 @@ function App() {
     const [isStudentMode, setIsStudentMode] = useState(false);
     const [studentStep, setStudentStep] = useState(1); // 1: Datos, 2: Disciplina/Horario, 3: Dashboard
     const [studentData, setStudentData] = useState({
+        name: '',
         dni: '',
         birthDate: '',
         address: '',
@@ -144,6 +146,7 @@ function App() {
             const adminName = user.user_metadata?.full_name || user.email.split('@')[0];
             setNewPayment(prev => ({ ...prev, receivedBy: adminName }));
             setNewStudent(prev => ({ ...prev, initialReceiver: adminName }));
+            setEditAdminName(adminName);
 
             console.log("fetchAppData: workspaceMembers found:", workspaceMembers?.length || 0);
             let workspaceId;
@@ -204,9 +207,11 @@ function App() {
 
                 workspaceId = newWS.id;
                 setUserWorkspace(newWS);
+                setEditWorkspaceName(newWS.name);
             } else {
                 workspaceId = workspaceMembers[0].workspace_id;
                 setUserWorkspace(workspaceMembers[0].workspaces);
+                setEditWorkspaceName(workspaceMembers[0].workspaces.name);
             }
 
             // 2. Fetch Students
@@ -272,6 +277,8 @@ function App() {
                 .eq('config_key', 'salary_data')
                 .maybeSingle();
 
+            if (salError) throw salError;
+
             if (salData && salData.config_value) {
                 let val = salData.config_value;
                 // Migration: if old data was an object {vanni: ..., nicki: ...}, convert it
@@ -287,6 +294,16 @@ function App() {
             } else {
                 setSalaryData([]);
             }
+
+            // 6. Fetch Notifications
+            const { data: notificationsData, error: notifError } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('workspace_id', workspaceId)
+                .order('created_at', { ascending: false });
+
+            if (notifError) throw notifError;
+            setNotifications(notificationsData);
 
             setIsLoaded(true);
 
@@ -485,7 +502,7 @@ function App() {
         }
     };
 
-    const [workspaceAdmins, setWorkspaceAdmins] = useState([]);
+    const [workspaceAdmins, setWorkspaceAdmins] = useState({ members: [], invites: [] });
     const [inviteEmail, setInviteEmail] = useState('');
 
     const fetchWorkspaceAdmins = async () => {
@@ -563,6 +580,8 @@ function App() {
     // Salary/Honorarios State - Dynamic Personnel
     const [salaryData, setSalaryData] = useState([]);
     const [personnelList, setPersonnelList] = useState([]); // Array of {id, name}
+    const [editWorkspaceName, setEditWorkspaceName] = useState('');
+    const [editAdminName, setEditAdminName] = useState('');
     const [newPersonName, setNewPersonName] = useState('');
 
     const [newStudent, setNewStudent] = useState({
@@ -998,6 +1017,39 @@ function App() {
         }
     };
 
+    const saveWorkspaceBranding = async () => {
+        if (!userWorkspace) return;
+        try {
+            const { error } = await supabase
+                .from('workspaces')
+                .update({ name: editWorkspaceName })
+                .eq('id', userWorkspace.id);
+            if (error) throw error;
+            setUserWorkspace({ ...userWorkspace, name: editWorkspaceName });
+            showToast("Nombre del espacio actualizado");
+        } catch (err) {
+            console.error("Error saving workspace branding:", err);
+            showToast("Error al guardar marca del espacio", "error");
+        }
+    };
+
+    const saveAdminName = async () => {
+        if (!session?.user) return;
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ full_name: editAdminName })
+                .eq('id', session.user.id);
+            if (error) throw error;
+            showToast("Perfil de administrador actualizado");
+            // Refresh to update defaults
+            fetchAppData(session.user);
+        } catch (err) {
+            console.error("Error saving admin name:", err);
+            showToast("Error al guardar perfil", "error");
+        }
+    };
+
     const updateSalary = (personId, field, value) => {
         setSalaryData(prev => {
             const index = prev.findIndex(s => s.personId === personId);
@@ -1361,14 +1413,57 @@ function App() {
                 dniUrl: publicUrl
             }));
 
-            showToast("Documento capturado correctamente");
+            // Intelligent OCR
+            const { data: { text } } = await Tesseract.recognize(blob, 'spa');
+            console.log("OCR Extracted text:", text);
+
+            const parsedData = parseDNIText(text);
+            if (parsedData.dni || parsedData.name) {
+                setStudentData(prev => ({
+                    ...prev,
+                    ...parsedData
+                }));
+                showToast("DNI capturado y datos extraídos correctamente");
+            } else {
+                showToast("Documento capturado, pero no se detectaron datos automáticos", "info");
+            }
+
+            // Auto-return to form is implicitly handled by stopping camera and returning to step 1
             setShowCamera(false);
         } catch (err) {
-            console.error("Error uploading capture:", err);
-            showToast("Error al subir captura", "error");
+            console.error("Error in capture/OCR:", err);
+            showToast("Error al procesar el documento", "error");
         } finally {
             setOcrLoading(false);
         }
+    };
+
+    const parseDNIText = (text) => {
+        const lines = text.split('\n');
+        const data = { dni: '', name: '', birthDate: '' };
+
+        // Simple Regex for argentine DNI (8 digits)
+        const dniMatch = text.match(/\b\d{2}\.?\d{3}\.?\d{3}\b/);
+        if (dniMatch) data.dni = dniMatch[0].replace(/\./g, '');
+
+        // RegEx for Birth Date (DD/MM/YYYY or DD MMM YYYY)
+        const dateMatch = text.match(/(\d{2})[/-](\d{2})[/-](\d{4})/);
+        if (dateMatch) {
+            const [_, day, month, year] = dateMatch;
+            data.birthDate = `${year}-${month}-${day}`;
+        }
+
+        // Name parsing is harder, look for keywords or uppercase lines
+        const nameLine = lines.find(l => l.toUpperCase().includes("APELLIDO") || l.toUpperCase().includes("NOMBRE"));
+        if (nameLine) {
+            // Heuristic: next uppercase line after "Apellido" or similar
+            const idx = lines.indexOf(nameLine);
+            if (lines[idx + 1] && lines[idx + 1] === lines[idx + 1].toUpperCase()) {
+                data.name = lines[idx + 1].trim();
+            }
+        }
+
+        return data;
     };
 
     const handleFileUploadToStorage = async (file, type) => {
@@ -1404,7 +1499,14 @@ function App() {
             const { error } = await supabase
                 .from('students')
                 .update({
-                    ...studentData,
+                    name: studentData.name || currentStudent.name,
+                    dni: studentData.dni,
+                    birth_date: studentData.birthDate,
+                    address: studentData.address,
+                    physical_aptitude_url: studentData.physicalAptitudeUrl,
+                    dni_url: studentData.dniUrl,
+                    disciplina: studentData.disciplina,
+                    horario: studentData.horario,
                     classes_per_week: parseInt(studentData.classes_per_week || currentStudent.classesPerWeek), // fallback if not set in step 2
                     status: 'activo',
                     registration_token: null // Consume token
@@ -1423,7 +1525,7 @@ function App() {
     };
 
     if (isInitialLoad) {
-        return <div className="loading-screen">Cargando Gestión Flex...</div>;
+        return <div className="loading-screen">Cargando {userWorkspace?.name || 'Gestión Flex'}...</div>;
     }
 
     if (!supabase) {
@@ -1461,10 +1563,10 @@ function App() {
                 <div className="auth-card animate-fade-in">
                     <div className="auth-header">
                         <div className="auth-logo">
-                            <h1>Gestión Flex</h1>
+                            <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
                         </div>
                         <h2>{authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}</h2>
-                        <p>{authMode === 'login' ? 'Bienvenido de nuevo' : 'Únete a Gestión Flex hoy'}</p>
+                        <p>{authMode === 'login' ? 'Bienvenido de nuevo' : `Únete a ${userWorkspace?.name || 'Gestión Flex'} hoy`}</p>
                     </div>
 
                     <form className="auth-form" onSubmit={handleAuth}>
@@ -1531,7 +1633,7 @@ function App() {
         return (
             <div className="student-app-container">
                 <header className="student-header">
-                    <h1>Gestión Flex</h1>
+                    <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
                     <span className="welcome-msg">Hola, {currentStudent.name.split(' ')[0]}</span>
                 </header>
 
@@ -1552,14 +1654,30 @@ function App() {
                                 <div className="camera-overlay">
                                     <video ref={videoRef} autoPlay playsInline />
                                     <div className="camera-controls">
-                                        <button className="btn-confirm" onClick={handleCameraCapture}>Capturar</button>
+                                        <button className="btn-confirm" onClick={handleCameraCapture} disabled={ocrLoading}>
+                                            {ocrLoading ? 'Procesando...' : 'Capturar DNI'}
+                                        </button>
                                         <button className="btn-cancel" onClick={() => setShowCamera(false)}>Cerrar</button>
                                     </div>
-                                    {ocrLoading && <div className="ocr-spinner">Procesando...</div>}
+                                    {ocrLoading && (
+                                        <div className="ocr-loading-overlay">
+                                            <div className="ocr-spinner"></div>
+                                            <span>Analizando Documento...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             <div className="student-form">
+                                <div className="form-group">
+                                    <label>Nombre Completo</label>
+                                    <input
+                                        type="text"
+                                        value={studentData.name}
+                                        onChange={e => setStudentData({ ...studentData, name: e.target.value })}
+                                        placeholder={currentStudent.name !== 'Nuevo Alumno' ? currentStudent.name : "Tu nombre y apellido"}
+                                    />
+                                </div>
                                 <div className="form-group">
                                     <label>DNI</label>
                                     <input type="text" value={studentData.dni} onChange={e => setStudentData({ ...studentData, dni: e.target.value })} />
@@ -1686,7 +1804,7 @@ function App() {
             <div className="app-container">
                 <aside className="sidebar">
                     <div className="logo-section">
-                        <h1>Gestión Flex</h1>
+                        <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
                         <span className="beta-label">Gestión inteligente de alumnos</span>
                     </div>
                     <nav className="nav-menu">
@@ -1897,7 +2015,7 @@ function App() {
         <div className="app-container">
             <aside className="sidebar">
                 <div className="logo-section">
-                    <h1>Gestión Flex</h1>
+                    <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
                     <span className="beta-label">Gestión inteligente de alumnos</span>
                 </div>
                 <nav className="nav-menu">
@@ -2029,7 +2147,7 @@ function App() {
                                             <FileText size={48} />
                                         </div>
                                         <div className="text-box">
-                                            <h3>Bienvenido a Gestión Flex</h3>
+                                            <h3>Bienvenido a {userWorkspace?.name || 'Gestión Flex'}</h3>
                                             <p>Aún no hay datos cargados en esta computadora.</p>
                                             <button
                                                 className="btn-add"
@@ -2529,6 +2647,39 @@ function App() {
                         <div className="settings-container">
                             <h2>Ajustes de Sistema</h2>
                             <p className="report-subtitle">Configuración de tu espacio de trabajo colaborativo.</p>
+
+                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
+                                <h3>Información del Espacio y Perfil</h3>
+                                <p className="report-subtitle">Personaliza cómo te ves y cómo se llama tu negocio.</p>
+                                <div className="form-group">
+                                    <label>Nombre del Espacio (Estudio/Gimnasio)</label>
+                                    <div className="input-with-button">
+                                        <input
+                                            type="text"
+                                            value={editWorkspaceName}
+                                            onChange={e => setEditWorkspaceName(e.target.value)}
+                                            placeholder="Ej: VN Pilates"
+                                        />
+                                        <button className="btn-save-mini" onClick={saveWorkspaceBranding}>
+                                            <Save size={16} /> Guardar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="form-group" style={{ marginTop: '1rem' }}>
+                                    <label>Tu Nombre (Administrador)</label>
+                                    <div className="input-with-button">
+                                        <input
+                                            type="text"
+                                            value={editAdminName}
+                                            onChange={e => setEditAdminName(e.target.value)}
+                                            placeholder="Tu nombre completo"
+                                        />
+                                        <button className="btn-save-mini" onClick={saveAdminName}>
+                                            <Save size={16} /> Guardar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Gestionar Personal / Profesores</h3>
