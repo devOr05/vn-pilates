@@ -1476,7 +1476,7 @@ function App() {
             if (parsedData.dni || parsedData.name) {
                 showToast("¡Captura Exitosa! Datos extraídos correctamente.", "success");
             } else {
-                showToast("Captura realizada, pero no se detectaron datos automáticos. Por favor, completa manualmente.", "info");
+                showToast("Captura realizada. Algunos datos podrían requerir carga manual.", "info");
             }
 
             stopCamera();
@@ -1494,10 +1494,10 @@ function App() {
         const data = { dni: '', name: '', birthDate: '' };
 
         // 1. DNI (8 digits, optional dots)
-        const dniMatch = text.match(/\b\d{2}\.?\d{3}\.?\d{3}\b/);
+        const dniMatch = text.match(/\b\d{1,2}\.?\d{3}\.?\d{3}\b/);
         if (dniMatch) data.dni = dniMatch[0].replace(/\./g, '');
 
-        // 2. Birth Date (DD/MM/YYYY)
+        // 2. Birth Date (DD/MM/YYYY or DD-MM-YYYY)
         const dateMatch = text.match(/(\d{2})[/-](\d{2})[/-](\d{4})/);
         if (dateMatch) {
             const [_, day, month, year] = dateMatch;
@@ -1512,10 +1512,14 @@ function App() {
             const up = line.toUpperCase();
             if (nameKeywords.some(k => up.includes(k)) && !up.includes("NACIMIENTO")) {
                 let nextIdx = idx + 1;
-                while (lines[nextIdx] && lines[nextIdx] === lines[nextIdx].toUpperCase() && lines[nextIdx].length > 2 && !nameKeywords.some(k => lines[nextIdx].includes(k))) {
+                // Capture up to 3 lines of ALL CAPS text that aren't keywords
+                while (lines[nextIdx] &&
+                    lines[nextIdx] === lines[nextIdx].toUpperCase() &&
+                    lines[nextIdx].length > 2 &&
+                    !nameKeywords.some(k => lines[nextIdx].toUpperCase().includes(k))) {
                     nameLines.push(lines[nextIdx]);
                     nextIdx++;
-                    if (nameLines.length >= 2) break;
+                    if (nameLines.length >= 3) break;
                 }
             }
         });
@@ -1705,7 +1709,7 @@ function App() {
                             <p className="step-desc">Necesitamos estos datos para tu ficha médica y administrativa.</p>
 
                             <div className="ocr-section">
-                                <button className="btn-ocr" onClick={() => setShowCamera(true)}>
+                                <button className="btn-ocr" onClick={() => { setIsStudentMode(true); setShowCamera(true); }}>
                                     <Camera size={20} /> Escanear DNI
                                 </button>
                                 <span>o completa manualmente</span>
@@ -2842,6 +2846,32 @@ function App() {
                     <div className="modal-overlay">
                         <div className="modal-card">
                             <h3>Nuevo {getLabel(true)}</h3>
+
+                            <div className="ocr-section-compact" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                                <button className="btn-ocr" onClick={() => { setIsStudentMode(false); setShowCamera(true); }}>
+                                    <Camera size={20} /> Smart DNI Scan
+                                </button>
+                                <p className="help-text-xs">Escanea el DNI para autocompletar datos</p>
+                            </div>
+
+                            {showCamera && (
+                                <div className="camera-overlay">
+                                    <video ref={videoRef} autoPlay playsInline />
+                                    <div className="camera-controls">
+                                        <button className="btn-confirm" onClick={handleCameraCapture} disabled={ocrLoading}>
+                                            {ocrLoading ? 'Procesando...' : 'Capturar DNI'}
+                                        </button>
+                                        <button className="btn-cancel" onClick={() => setShowCamera(false)}>Cerrar</button>
+                                    </div>
+                                    {ocrLoading && (
+                                        <div className="ocr-loading-overlay">
+                                            <div className="ocr-spinner"></div>
+                                            <span>Analizando Documento...</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="form-group">
                                 <label>Nombre Completo</label>
                                 <input type="text" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Nombre y Apellido" />
