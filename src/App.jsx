@@ -1400,17 +1400,22 @@ function App() {
             console.log("OCR Extracted text:", text);
 
             const parsedData = parseDNIText(text);
+
+            // Crucial: Update studentData with both the URL and the extracted text
+            setStudentData(prev => ({
+                ...prev,
+                dniUrl: publicUrl,
+                ...parsedData // This includes name, dni, birthDate
+            }));
+
             if (parsedData.dni || parsedData.name) {
-                setStudentData(prev => ({
-                    ...prev,
-                    ...parsedData
-                }));
-                showToast("DNI capturado y datos extraídos correctamente");
+                showToast("¡Captura Exitosa! Datos extraídos correctamente.", "success");
             } else {
-                showToast("Documento capturado, pero no se detectaron datos automáticos", "info");
+                showToast("Captura realizada, pero no se detectaron datos automáticos. Por favor, completa manualmente.", "info");
             }
 
-            // Auto-return to form is implicitly handled by stopping camera and returning to step 1
+            // Immediately stop camera and return to form
+            stopCamera();
             setShowCamera(false);
         } catch (err) {
             console.error("Error in capture/OCR:", err);
