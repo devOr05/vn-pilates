@@ -2388,3 +2388,10 @@ body {
     border-top: 1px solid #e2e8f0;
     padding-top: 0.75rem;
 }
+/* Schedule card in student dashboard */
+.schedule-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; border: 1px solid var(--border-color); }
+.schedule-details { display: flex; flex-direction: column; gap: 0.75rem; }
+.schedule-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
+.schedule-row:last-child { border-bottom: none; }
+.schedule-label { font-size: 0.85rem; color: var(--text-muted); }
+.schedule-value { font-weight: 600; color: var(--text-main); font-size: 0.95rem; }

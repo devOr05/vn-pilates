@@ -1609,7 +1609,7 @@ function App() {
                     dni_url: studentData.dniUrl,
                     disciplina: studentData.disciplina,
                     horario: studentData.horario,
-                    classes_per_week: parseInt(studentData.classes_per_week || currentStudent.classesPerWeek), // fallback if not set in step 2
+                    classes_per_week: parseInt(studentData.classes_per_week || currentStudent.classesPerWeek),
                     status: 'activo',
                     registration_token: null // Consume token
                 })
@@ -1617,12 +1617,45 @@ function App() {
 
             if (error) throw error;
 
-            showToast("Registro completado con éxito");
-            fetchStudentData(registrationToken);
-            setStudentStep(3);
+            // Fetch the updated student by ID (token is now null so we fetch by ID)
+            const { data: updatedStudent, error: fetchError } = await supabase
+                .from('students')
+                .select('*, payments(*)')
+                .eq('id', currentStudent.id)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // Map the updated student data into React state
+            const mapped = {
+                id: updatedStudent.id,
+                name: updatedStudent.name,
+                dni: updatedStudent.dni,
+                birthDate: updatedStudent.birth_date,
+                address: updatedStudent.address,
+                physicalAptitudeUrl: updatedStudent.physical_aptitude_url,
+                dniUrl: updatedStudent.dni_url,
+                disciplina: updatedStudent.disciplina,
+                horario: updatedStudent.horario,
+                classesPerWeek: updatedStudent.classes_per_week,
+                status: updatedStudent.status,
+                entryDate: updatedStudent.entry_date,
+                registrationToken: null,
+                history: (updatedStudent.payments || []).map(p => ({
+                    id: p.id,
+                    month: p.month,
+                    amount: p.amount?.toString(),
+                    receivedBy: p.received_by,
+                    date: p.payment_date
+                }))
+            };
+
+            setStudents(prev => prev.map(s => s.id === mapped.id ? mapped : s));
+            showToast("¡Registro completado con éxito! Bienvenid@.", "success");
+            setStudentStep(3); // Go to dashboard
         } catch (error) {
             console.error("Error finishing registration:", error);
-            showToast("Error al completar el registro", "error");
+            showToast("Error al completar el registro: " + error.message, "error");
         }
     };
 
@@ -1865,8 +1898,32 @@ function App() {
                                 </div>
                             </div>
 
-                            <div className="upcoming-section">
-                                <h3>Notificaciones</h3>
+                            <div className="upcoming-section" style={{ marginTop: '1.5rem' }}>
+                                <h3>📅 Mi Horario</h3>
+                                <div className="schedule-card">
+                                    {currentStudent.disciplina ? (
+                                        <div className="schedule-details">
+                                            <div className="schedule-row">
+                                                <span className="schedule-label">Disciplina</span>
+                                                <span className="schedule-value">{currentStudent.disciplina}</span>
+                                            </div>
+                                            <div className="schedule-row">
+                                                <span className="schedule-label">Horario</span>
+                                                <span className="schedule-value">{currentStudent.horario || 'Sin asignar'}</span>
+                                            </div>
+                                            <div className="schedule-row">
+                                                <span className="schedule-label">Clases por semana</span>
+                                                <span className="schedule-value">{currentStudent.classesPerWeek || '-'}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="no-data">Tu horario aún no ha sido asignado.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="upcoming-section" style={{ marginTop: '1.5rem' }}>
+                                <h3>🔔 Notificaciones</h3>
                                 <div className="notifications-list">
                                     {notifications.length > 0 ? (
                                         notifications
