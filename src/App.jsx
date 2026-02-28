@@ -314,14 +314,17 @@ function App() {
             } else {
                 const { error, data } = await supabase.auth.signUp({
                     email: authEmail,
-                    password: authPassword
+                    password: authPassword,
+                    options: {
+                        emailRedirectTo: window.location.origin
+                    }
                 });
                 if (error) {
                     console.error("handleAuth: Signup Error:", error);
                     throw error;
                 }
                 console.log("handleAuth: Signup Success!", data.user?.id);
-                showToast("Registro exitoso. ¡Revisa tu email!");
+                showToast("Registro exitoso. ¡Revisa tu email!", "success");
             }
         } catch (error) {
             console.error("handleAuth: Exception:", error);
