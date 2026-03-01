@@ -445,16 +445,20 @@ function App() {
             await supabase.from('students').delete().eq('workspace_id', wid);
             await supabase.from('workspace_members').delete().eq('workspace_id', wid);
             await supabase.from('workspaces').delete().eq('id', wid);
-            
+
             // Delete the user from Supabase Auth via RPC
             const { error: rpcError } = await supabase.rpc('delete_user_account');
             if (rpcError) {
                 console.error("Error in delete_user_account RPC:", rpcError);
                 showToast("No se pudo borrar la cuenta principal (RPC error). Contacte a soporte.", "error");
             }
-            
+
+
             await supabase.auth.signOut();
             showToast("Tu cuenta y todos tus datos han sido eliminados permanentemente", "success");
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } catch (err) {
             console.error("Error deleting admin:", err);
             showToast("Error al eliminar la cuenta.", "error");
@@ -1834,14 +1838,14 @@ function App() {
         return (
             <div className="auth-container">
                 <div className="auth-card animate-fade-in" style={{ padding: '0', overflow: 'hidden' }}>
-                    
+
                     {/* Auth Tabs */}
                     <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => setAuthMode('login')}
                             style={{
-                                flex: 1, padding: '1.2rem', background: 'none', border: 'none', 
+                                flex: 1, padding: '1.2rem', background: 'none', border: 'none',
                                 borderBottom: authMode === 'login' ? '3px solid var(--primary-color)' : '3px solid transparent',
                                 color: authMode === 'login' ? 'var(--primary-color)' : 'var(--text-muted)',
                                 fontWeight: '600', fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s'
@@ -1849,7 +1853,7 @@ function App() {
                         >
                             INICIAR SESIÓN
                         </button>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => setAuthMode('signup')}
                             style={{
@@ -3146,94 +3150,129 @@ function App() {
                             </div>
 
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
-                                <h3>Gestionar Disciplinas</h3>
-                                <p className="report-subtitle">Agrega las actividades o disciplinas que se dictan en tu espacio.</p>
-                                <div className="admin-invite-form">
-                                    <input
-                                        type="text"
-                                        placeholder="Ej: Pilates Reformer"
-                                        value={newDiscipline}
-                                        onChange={e => setNewDiscipline(e.target.value)}
-                                    />
-                                    <button className="btn-add" onClick={() => addDiscipline(newDiscipline)}>
-                                        <Plus size={18} /> Agregar
-                                    </button>
-                                </div>
-                                <div className="admins-list">
-                                    {disciplines.length > 0 ? disciplines.map(d => (
-                                        <div key={d.id} className="admin-item">
-                                            <div className="admin-info">
-                                                <span className="n-type general" style={{ borderRadius: '50%', width: '10px', height: '10px', padding: 0 }}></span>
-                                                <span>{d.name}</span>
-                                            </div>
-                                            <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)}>
-                                                <Trash2 size={16} />
+                                <h3>Configuración Operativa</h3>
+                                <p className="report-subtitle">Personaliza las opciones y sincroniza tus datos.</p>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginTop: '1.5rem' }}>
+
+                                    {/* Disciplines Section */}
+                                    <div>
+                                        <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Disciplinas</h4>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Pilates Reformer</p>
+                                        <div className="admin-invite-form" style={{ marginBottom: '1rem' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Nueva disciplina..."
+                                                value={newDiscipline}
+                                                onChange={e => setNewDiscipline(e.target.value)}
+                                            />
+                                            <button className="btn-add" onClick={() => addDiscipline(newDiscipline)}>
+                                                <Plus size={18} />
                                             </button>
                                         </div>
-                                    )) : <p className="no-data">La lista está vacía. Añade disciplinas.</p>}
-                                </div>
-                            </div>
+                                        <div className="admins-list">
+                                            {disciplines.length > 0 ? disciplines.map(d => (
+                                                <div key={d.id} className="admin-item" style={{ padding: '0.5rem' }}>
+                                                    <div className="admin-info">
+                                                        <span className="n-type general" style={{ borderRadius: '50%', width: '8px', height: '8px', padding: 0 }}></span>
+                                                        <span style={{ fontSize: '0.9rem' }}>{d.name}</span>
+                                                    </div>
+                                                    <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)} style={{ padding: '0.3rem' }}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            )) : <p className="no-data" style={{ padding: '0.5rem' }}>La lista está vacía.</p>}
+                                        </div>
+                                    </div>
 
-                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
-                                <h3>Gestionar Horarios</h3>
-                                <p className="report-subtitle">Agrega los bloques horarios para que los {getLabel(true).toLowerCase()} seleccionen su turno principal.</p>
-                                <div className="admin-invite-form">
-                                    <input
-                                        type="text"
-                                        placeholder="Ej: Tarde (14:00 - 18:00) o Martes y Jueves 15hs"
-                                        value={newSchedule}
-                                        onChange={e => setNewSchedule(e.target.value)}
-                                    />
-                                    <button className="btn-add" onClick={() => addSchedule(newSchedule)}>
-                                        <Plus size={18} /> Agregar
-                                    </button>
-                                </div>
-                                <div className="admins-list">
-                                    {schedules.length > 0 ? schedules.map(s => (
-                                        <div key={s.id} className="admin-item">
-                                            <div className="admin-info">
-                                                <span>🕒 {s.name}</span>
-                                            </div>
-                                            <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)}>
-                                                <Trash2 size={16} />
+                                    {/* Schedules Section */}
+                                    <div>
+                                        <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Horarios</h4>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Tarde (14:00 - 18:00)</p>
+                                        <div className="admin-invite-form" style={{ marginBottom: '1rem' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Nuevo horario..."
+                                                value={newSchedule}
+                                                onChange={e => setNewSchedule(e.target.value)}
+                                            />
+                                            <button className="btn-add" onClick={() => addSchedule(newSchedule)}>
+                                                <Plus size={18} />
                                             </button>
                                         </div>
-                                    )) : <p className="no-data">La lista está vacía. Añade horarios.</p>}
-                                </div>
-                            </div>
+                                        <div className="admins-list">
+                                            {schedules.length > 0 ? schedules.map(s => (
+                                                <div key={s.id} className="admin-item" style={{ padding: '0.5rem' }}>
+                                                    <div className="admin-info">
+                                                        <span style={{ fontSize: '0.9rem' }}>🕒 {s.name}</span>
+                                                    </div>
+                                                    <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)} style={{ padding: '0.3rem' }}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            )) : <p className="no-data" style={{ padding: '0.5rem' }}>La lista está vacía.</p>}
+                                        </div>
+                                    </div>
 
-                            <div className="report-card" style={{ marginTop: '1.5rem' }}>
-                                <h3>Importación de Datos</h3>
-                                <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
-                                <div className="badges" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Disciplina</label>
-                                    <select
-                                        value={selectedStudent?.disciplina || ''}
-                                        onChange={e => updateStudentField('disciplina', e.target.value)}
-                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', marginBottom: '0.5rem' }}
-                                    >
-                                        <option value="">Sin asignar</option>
-                                        {disciplines.map(d => (
-                                            <option key={d.id} value={d.name}>{d.name}</option>
-                                        ))}
-                                    </select>
+                                    {/* Import Section */}
+                                    <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '2rem' }}>
+                                        <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Importación de Datos</h4>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Sincroniza tus datos locales con la planilla central.</p>
 
-                                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Horario Adjudicado</label>
-                                    <select
-                                        value={selectedStudent?.horario || ''}
-                                        onChange={e => updateStudentField('horario', e.target.value)}
-                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', marginBottom: '1rem' }}
-                                    >
-                                        <option value="">Sin asignar</option>
-                                        {schedules.map(s => (
-                                            <option key={s.id} value={s.name}>{s.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <button className="btn-secondary" style={{ width: '100%' }} onClick={() => fileInputRef.current.click()}>
-                                        <Save size={20} /> <span style={{ marginLeft: '0.5rem' }}>Importar CSV Local</span>
-                                    </button>
+                                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                                            <label style={{ fontSize: '0.85rem' }}>Disciplina asignada</label>
+                                            <select
+                                                className="input-field"
+                                                value={importDiscipline}
+                                                onChange={e => setImportDiscipline(e.target.value)}
+                                                style={{ marginTop: '0.2rem' }}
+                                            >
+                                                <option value="">Sin asignar</option>
+                                                {disciplines.map(d => (
+                                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                            <label style={{ fontSize: '0.85rem' }}>Horario adjudicado</label>
+                                            <select
+                                                className="input-field"
+                                                value={importSchedule}
+                                                onChange={e => setImportSchedule(e.target.value)}
+                                                style={{ marginTop: '0.2rem' }}
+                                            >
+                                                <option value="">Sin asignar</option>
+                                                {schedules.map(s => (
+                                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <input
+                                            type="file"
+                                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                                            onChange={handleFileUpload}
+                                            style={{ display: 'none' }}
+                                            ref={fileInputRef}
+                                        />
+                                        <button
+                                            className="btn-secondary"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            style={{ width: '100%', justifyContent: 'center' }}
+                                        >
+                                            <FileCheck size={18} /> Importar CSV Local
+                                        </button>
+                                        {/* Link Import was here, removed per user previous instruction or kept?
+                                         I will keep the Link Import button just in case, below CSV */}
+                                        <button
+                                            className="btn-secondary"
+                                            style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
+                                            onClick={() => setShowLinkModal(true)}
+                                        >
+                                            <Save size={18} /> Ver Planilla
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
