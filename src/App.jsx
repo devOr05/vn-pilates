@@ -85,6 +85,7 @@ function App() {
     const [authPassword, setAuthPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [authLoading, setAuthLoading] = useState(false);
+    const [signupSuccess, setSignupSuccess] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [ocrLoading, setOcrLoading] = useState(false);
 
@@ -369,6 +370,7 @@ function App() {
                     throw error;
                 }
                 console.log("handleAuth: Signup Success!", data.user?.id);
+                setSignupSuccess(true);
                 showToast("Registro exitoso. ¡Revisa tu email!", "success");
             }
         } catch (error) {
@@ -641,6 +643,7 @@ function App() {
     const [schedules, setSchedules] = useState([]);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [newSchedule, setNewSchedule] = useState('');
+    const [newScheduleDiscipline, setNewScheduleDiscipline] = useState('');
 
     const [newStudent, setNewStudent] = useState({
         name: '',
@@ -817,13 +820,17 @@ function App() {
     };
 
     const addSchedule = async (name) => {
-        if (!name.trim()) return;
-        const newS = { id: Date.now().toString(), name: name.trim() };
+        if (!name.trim() || !newScheduleDiscipline) {
+            showToast("Por favor ingresa el horario y escoge una disciplina", "error");
+            return;
+        }
+        const newS = { id: Date.now().toString(), name: name.trim(), discipline: newScheduleDiscipline };
         const updated = [...schedules, newS];
         setSchedules(updated);
         setNewSchedule('');
+        setNewScheduleDiscipline('');
         await saveConfigArray('schedules', updated);
-        showToast("Horario agregado");
+        showToast("Horario agregado y asignado a " + newScheduleDiscipline);
     };
 
     const removeSchedule = async (id) => {
@@ -1498,6 +1505,85 @@ function App() {
         doc.save(`Gestion-Flex-Reporte-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
+    const exportRosterToPDF = () => {
+        const doc = new jsPDF();
+
+        doc.setFontSize(18);
+        doc.text("Planilla de Horarios y Alumnos", 14, 20);
+        doc.setFontSize(11);
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, 14, 28);
+
+        if (!schedules || schedules.length === 0) {
+            doc.text("No hay horarios registrados.", 14, 40);
+            doc.save(`Planilla-Horarios-${new Date().toISOString().split('T')[0]}.pdf`);
+            return;
+        }
+
+        let currentY = 35;
+
+        // Group students by their schedule
+        schedules.forEach((sched) => {
+            // Check if we need a page break
+            if (currentY > 260) {
+                doc.addPage();
+                currentY = 20;
+            }
+
+            doc.setFontSize(14);
+            const title = `${sched.name} ${sched.discipline ? '(' + sched.discipline + ')' : ''}`;
+            doc.text(title, 14, currentY);
+            currentY += 5;
+
+            // Find students in this schedule
+            const enrolled = students.filter(s => s.horario === sched.name && (sched.discipline ? s.disciplina === sched.discipline : true) && s.status === 'activo');
+
+            if (enrolled.length === 0) {
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text("Sin alumnos inscritos.", 14, currentY + 5);
+                doc.setTextColor(0);
+                currentY += 15;
+            } else {
+                const headers = [["Nombre del Alumno", "Teléfono", "Días/Sem"]];
+                const rows = enrolled.map(s => [s.name, s.phone || '-', s.classesPerWeek || '-']);
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: headers,
+                    body: rows,
+                    theme: 'grid',
+                    headStyles: { fillStyle: '#4f46e5' },
+                    margin: { left: 14, right: 14 }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
+        });
+
+        // Also list students without an assigned schedule
+        const unassigned = students.filter(s => !s.horario && s.status === 'activo');
+        if (unassigned.length > 0) {
+            if (currentY > 260) {
+                doc.addPage();
+                currentY = 20;
+            }
+            doc.setFontSize(14);
+            doc.text("Sin Horario Asignado", 14, currentY);
+            currentY += 5;
+            const headers = [["Nombre del Alumno", "Teléfono", "Días/Sem"]];
+            const rows = unassigned.map(s => [s.name, s.phone || '-', s.classesPerWeek || '-']);
+            doc.autoTable({
+                startY: currentY,
+                head: headers,
+                body: rows,
+                theme: 'grid',
+                headStyles: { fillStyle: '#ef4444' },
+                margin: { left: 14, right: 14 }
+            });
+        }
+
+        doc.save(`Planilla-Horarios-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const exportStudentPDF = (student) => {
         const doc = new jsPDF();
         doc.setFontSize(18);
@@ -1813,7 +1899,7 @@ function App() {
         }
     };
 
-    if (isInitialLoad) {
+    if (isInitialLoad || (session && !isLoaded && !isStudentMode)) {
         return <div className="loading-screen">Cargando {userWorkspace?.name || 'Gestión Flex'}...</div>;
     }
 
@@ -1891,6 +1977,16 @@ function App() {
                                 {authMode === 'login' ? 'Ingresa tus credenciales para continuar' : 'Crea tu cuenta gratis en segundos'}
                             </p>
                         </div>
+
+                        {signupSuccess && (
+                            <div style={{ background: '#dcfce7', color: '#166534', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                <Mail size={24} style={{ flexShrink: 0 }} />
+                                <div>
+                                    <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '1rem' }}>¡Registro exitoso!</h4>
+                                    <p style={{ margin: 0, fontSize: '0.85rem' }}>Hemos enviado un enlace de confirmación a <strong>{authEmail}</strong>. Por favor, revisa tu bandeja de entrada (y la carpeta de Spam) para activar tu cuenta.</p>
+                                </div>
+                            </div>
+                        )}
 
                         <form className="auth-form" onSubmit={handleAuth}>
                             <div className="form-group">
@@ -2061,10 +2157,15 @@ function App() {
                                 </div>
                                 <div className="form-group">
                                     <label>Horario Preferido</label>
-                                    <select value={studentData.horario} onChange={e => setStudentData({ ...studentData, horario: e.target.value })}>
-                                        <option value="">Selecciona...</option>
-                                        {schedules.map(s => (
-                                            <option key={s.id} value={s.name}>{s.name}</option>
+                                    <select
+                                        value={studentData.horario}
+                                        onChange={e => setStudentData({ ...studentData, horario: e.target.value })}
+                                        disabled={!studentData.disciplina}
+                                        style={{ opacity: !studentData.disciplina ? 0.6 : 1 }}
+                                    >
+                                        <option value="">{studentData.disciplina ? 'Selecciona un horario...' : 'Primero selecciona una disciplina'}</option>
+                                        {schedules.filter(s => s.discipline === studentData.disciplina || !s.discipline).map(s => (
+                                            <option key={s.id} value={s.name}>{s.name} {!s.discipline && '(Sin Especificar)'}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -2443,8 +2544,9 @@ function App() {
                         <div className="student-list-container">
                             <div className="list-header">
                                 <h3>Listado de Alumnos ({filteredStudents.length})</h3>
-                                <div className="list-actions">
-                                    {isLoaded && <button className="btn-secondary" onClick={() => exportToExcel('alumnos')}>Exportar Excel</button>}
+                                <div className="list-actions" style={{ display: 'flex', gap: '0.5rem' }}>
+                                    {isLoaded && <button className="btn-secondary-mini" onClick={exportRosterToPDF}><FileText size={16} /> Horarios PDF</button>}
+                                    {isLoaded && <button className="btn-secondary-mini" onClick={() => exportToExcel('alumnos')}><Save size={16} /> Excel</button>}
                                 </div>
                             </div>
 
@@ -3179,7 +3281,7 @@ function App() {
                                 <h3>Configuración Operativa</h3>
                                 <p className="report-subtitle">Personaliza las opciones y sincroniza tus datos.</p>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', marginTop: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '2rem', marginTop: '1.5rem' }}>
 
                                     {/* Disciplines Section */}
                                     <div>
@@ -3214,14 +3316,25 @@ function App() {
                                     {/* Schedules Section */}
                                     <div>
                                         <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Horarios</h4>
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Tarde (14:00 - 18:00)</p>
-                                        <div className="admin-invite-form" style={{ marginBottom: '1rem' }}>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Lunes y Miércoles 14hs</p>
+                                        <div className="admin-invite-form" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                                             <input
                                                 type="text"
                                                 placeholder="Nuevo horario..."
                                                 value={newSchedule}
                                                 onChange={e => setNewSchedule(e.target.value)}
+                                                style={{ flex: '1 1 150px' }}
                                             />
+                                            <select
+                                                value={newScheduleDiscipline}
+                                                onChange={e => setNewScheduleDiscipline(e.target.value)}
+                                                style={{ flex: '1 1 150px', cursor: 'pointer', padding: '0.9rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)' }}
+                                            >
+                                                <option value="">Asignar Disciplina...</option>
+                                                {disciplines.map(d => (
+                                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                                ))}
+                                            </select>
                                             <button className="btn-add" onClick={() => addSchedule(newSchedule)}>
                                                 <Plus size={18} />
                                             </button>
@@ -3230,7 +3343,7 @@ function App() {
                                             {schedules.length > 0 ? schedules.map(s => (
                                                 <div key={s.id} className="admin-item" style={{ padding: '0.5rem' }}>
                                                     <div className="admin-info">
-                                                        <span style={{ fontSize: '0.9rem' }}>🕒 {s.name}</span>
+                                                        <span style={{ fontSize: '0.9rem' }}>🕒 {s.name} {s.discipline && <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', marginLeft: '0.5rem', background: '#eef2ff', padding: '2px 6px', borderRadius: '12px' }}>{s.discipline}</span>}</span>
                                                     </div>
                                                     <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)} style={{ padding: '0.3rem' }}>
                                                         <Trash2 size={14} />
