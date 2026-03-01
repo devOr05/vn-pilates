@@ -259,25 +259,26 @@ function App() {
             setIsLoaded(true);
 
             // 4. Fetch Personnel List from Configs
-            const { data: configData } = await supabase
+            const { data: configData, error: configError } = await supabase
                 .from('workspace_configs')
                 .select('*')
-                .eq('workspace_id', workspaceId)
-                .in('config_key', ['personnel_list', 'disciplines', 'schedules']);
+                .eq('workspace_id', workspaceId);
 
-            if (configData && configData.length > 0) {
-                const pList = configData.find(c => c.config_key === 'personnel_list');
-                const dList = configData.find(c => c.config_key === 'disciplines');
-                const sList = configData.find(c => c.config_key === 'schedules');
+            if (configData) {
+                const salaryConf = configData.find(c => c.config_key === 'salary_data');
+                const personnelConf = configData.find(c => c.config_key === 'personnel_list');
+                const discConf = configData.find(c => c.config_key === 'disciplines');
+                const schedConf = configData.find(c => c.config_key === 'schedules');
 
-                if (pList) setPersonnelList(Array.isArray(pList.config_value) ? pList.config_value : []);
-                if (dList) setDisciplines(Array.isArray(dList.config_value) ? dList.config_value : []);
-                if (sList) setSchedules(Array.isArray(sList.config_value) ? sList.config_value : []);
-            } else {
-                setPersonnelList([]);
+                setSalaryData(salaryConf ? salaryConf.config_value : []);
+                setPersonnelList(personnelConf ? personnelConf.config_value : []);
+                setDisciplines(discConf ? discConf.config_value : []);
+                setSchedules(schedConf ? schedConf.config_value : []);
             }
-
             // 5. Fetch Salary Data
+            // This section is now handled by the consolidated configData fetch above.
+            // Keeping it commented out for reference if needed.
+            /*
             const { data: salData, error: salError } = await supabase
                 .from('workspace_configs')
                 .select('*')
@@ -293,6 +294,7 @@ function App() {
             } else {
                 setSalaryData([]);
             }
+            */
 
             // 6. Fetch Notifications
             const { data: notificationsData, error: notifError } = await supabase
@@ -608,9 +610,9 @@ function App() {
     const [editAdminName, setEditAdminName] = useState('');
     const [newPersonName, setNewPersonName] = useState('');
 
-    // Disciplines & Schedules (admin-configurable, student selects from these)
-    const [disciplines, setDisciplines] = useState(['Pilates Reformer', 'Yoga', 'Funcional']);
-    const [schedules, setSchedules] = useState(['Mañana (8:00 - 12:00)', 'Tarde (14:00 - 18:00)', 'Noche (18:00 - 21:00)']);
+    // Disciplines & Schedules (admin-configurable)
+    const [disciplines, setDisciplines] = useState([]);
+    const [schedules, setSchedules] = useState([]);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [newSchedule, setNewSchedule] = useState('');
 
@@ -737,18 +739,28 @@ function App() {
         return () => clearTimeout(timer);
     }, [students, notifications]);
 
+    const saveConfigArray = async (key, valArray) => {
+        if (!userWorkspace) return;
+        try {
+            const { error } = await supabase.from('workspace_configs').upsert({
+                workspace_id: userWorkspace.id,
+                config_key: key,
+                config_value: valArray
+            });
+            if (error) throw error;
+        } catch (err) {
+            console.error(`Error saving ${key}:`, err);
+            showToast(`Error guardando ${key}`, "error");
+        }
+    };
+
     const addPerson = async (name) => {
         if (!name.trim()) return;
         const newPerson = { id: Date.now().toString(), name: name.trim() };
         const updatedList = [...personnelList, newPerson];
         setPersonnelList(updatedList);
         setNewPersonName('');
-
-        await supabase.from('workspace_configs').upsert({
-            workspace_id: userWorkspace.id,
-            config_key: 'personnel_list',
-            config_value: updatedList
-        });
+        await saveConfigArray('personnel_list', updatedList);
         showToast("Personal agregado");
     };
 
@@ -757,6 +769,40 @@ function App() {
         setPersonnelList(newList);
         await saveConfigArray('personnel_list', newList);
         showToast("Personal eliminado", "error");
+    };
+
+    const addDiscipline = async (name) => {
+        if (!name.trim()) return;
+        const newD = { id: Date.now().toString(), name: name.trim() };
+        const updated = [...disciplines, newD];
+        setDisciplines(updated);
+        setNewDiscipline('');
+        await saveConfigArray('disciplines', updated);
+        showToast("Disciplina agregada");
+    };
+
+    const removeDiscipline = async (id) => {
+        const updated = disciplines.filter(d => d.id !== id);
+        setDisciplines(updated);
+        await saveConfigArray('disciplines', updated);
+        showToast("Disciplina eliminada", "error");
+    };
+
+    const addSchedule = async (name) => {
+        if (!name.trim()) return;
+        const newS = { id: Date.now().toString(), name: name.trim() };
+        const updated = [...schedules, newS];
+        setSchedules(updated);
+        setNewSchedule('');
+        await saveConfigArray('schedules', updated);
+        showToast("Horario agregado");
+    };
+
+    const removeSchedule = async (id) => {
+        const updated = schedules.filter(s => s.id !== id);
+        setSchedules(updated);
+        await saveConfigArray('schedules', updated);
+        showToast("Horario eliminado", "error");
     };
 
     const handleLinkImport = async () => {
@@ -1935,18 +1981,18 @@ function App() {
                                     <label>Disciplina</label>
                                     <select value={studentData.disciplina} onChange={e => setStudentData({ ...studentData, disciplina: e.target.value })}>
                                         <option value="">Selecciona...</option>
-                                        <option value="Pilates Reformer">Pilates Reformer</option>
-                                        <option value="Yoga">Yoga</option>
-                                        <option value="Funcional">Funcional</option>
+                                        {disciplines.map(d => (
+                                            <option key={d.id} value={d.name}>{d.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label>Horario Preferido</label>
                                     <select value={studentData.horario} onChange={e => setStudentData({ ...studentData, horario: e.target.value })}>
                                         <option value="">Selecciona...</option>
-                                        <option value="Mañana (8:00 - 12:00)">Mañana (8:00 - 12:00)</option>
-                                        <option value="Tarde (14:00 - 18:00)">Tarde (14:00 - 18:00)</option>
-                                        <option value="Noche (18:00 - 21:00)">Noche (18:00 - 21:00)</option>
+                                        {schedules.map(s => (
+                                            <option key={s.id} value={s.name}>{s.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="btn-group-row">
@@ -2438,75 +2484,81 @@ function App() {
                                     <span>{new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</span>
                                 </div>
                                 <div className="salary-grid">
-                                    {personnelList.map(person => {
-                                        const data = salaryData.find(s => s.personId === person.id) || { hours: 0, hourlyValue: 0, advances: 0 };
-                                        const sueldo = data.hours * data.hourlyValue;
-                                        const resto = sueldo - data.advances;
-                                        return (
-                                            <div key={person.id} className={`salary-card`}>
-                                                <div className="card-header">
-                                                    <h4>{person.name.toUpperCase()}</h4>
+                                    {personnelList.length === 0 ? (
+                                        <p className="no-data" style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px' }}>
+                                            La lista de personal está vacía. Debes agregar Profesionales desde la pestaña "Ajustes" para poder cargar sus honorarios aquí.
+                                        </p>
+                                    ) : (
+                                        personnelList.map(person => {
+                                            const data = salaryData.find(s => s.personId === person.id) || { hours: 0, hourlyValue: 0, advances: 0 };
+                                            const sueldo = data.hours * data.hourlyValue;
+                                            const resto = sueldo - data.advances;
+                                            return (
+                                                <div key={person.id} className={`salary-card`}>
+                                                    <div className="card-header">
+                                                        <h4>{person.name.toUpperCase()}</h4>
+                                                    </div>
+                                                    <div className="salary-inputs">
+                                                        <div className="input-group">
+                                                            <label>Horas Trabajadas</label>
+                                                            <input
+                                                                type="text"
+                                                                inputMode="decimal"
+                                                                value={data.hours || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        updateSalary(person.id, 'hours', parseFloat(val) || 0);
+                                                                    }
+                                                                }}
+                                                                placeholder="0 hs"
+                                                            />
+                                                        </div>
+                                                        <div className="input-group">
+                                                            <label>Valor Hora</label>
+                                                            <input
+                                                                type="text"
+                                                                inputMode="decimal"
+                                                                value={data.hourlyValue || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        updateSalary(person.id, 'hourlyValue', parseFloat(val) || 0);
+                                                                    }
+                                                                }}
+                                                                placeholder="$ 0"
+                                                            />
+                                                        </div>
+                                                        <div className="input-group">
+                                                            <label>Adelantos</label>
+                                                            <input
+                                                                type="text"
+                                                                inputMode="decimal"
+                                                                value={data.advances || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value.replace(',', '.');
+                                                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                        updateSalary(person.id, 'advances', parseFloat(val) || 0);
+                                                                    }
+                                                                }}
+                                                                placeholder="$ 0"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="salary-results">
+                                                        <div className="result-row">
+                                                            <span>Sueldo Bruto</span>
+                                                            <strong>{sueldo > 0 ? `$ ${sueldo.toLocaleString()}` : '---'}</strong>
+                                                        </div>
+                                                        <div className="result-row highlight">
+                                                            <span>Resto a pagar</span>
+                                                            <strong>{resto !== 0 ? `$ ${resto.toLocaleString()}` : '---'}</strong>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="salary-inputs">
-                                                    <div className="input-group">
-                                                        <label>Horas Trabajadas</label>
-                                                        <input
-                                                            type="text"
-                                                            inputMode="decimal"
-                                                            value={data.hours || ''}
-                                                            onChange={e => {
-                                                                const val = e.target.value.replace(',', '.');
-                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                    updateSalary(person.id, 'hours', parseFloat(val) || 0);
-                                                                }
-                                                            }}
-                                                            placeholder="0 hs"
-                                                        />
-                                                    </div>
-                                                    <div className="input-group">
-                                                        <label>Valor Hora</label>
-                                                        <input
-                                                            type="text"
-                                                            inputMode="decimal"
-                                                            value={data.hourlyValue || ''}
-                                                            onChange={e => {
-                                                                const val = e.target.value.replace(',', '.');
-                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                    updateSalary(person.id, 'hourlyValue', parseFloat(val) || 0);
-                                                                }
-                                                            }}
-                                                            placeholder="$ 0"
-                                                        />
-                                                    </div>
-                                                    <div className="input-group">
-                                                        <label>Adelantos</label>
-                                                        <input
-                                                            type="text"
-                                                            inputMode="decimal"
-                                                            value={data.advances || ''}
-                                                            onChange={e => {
-                                                                const val = e.target.value.replace(',', '.');
-                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                                    updateSalary(person.id, 'advances', parseFloat(val) || 0);
-                                                                }
-                                                            }}
-                                                            placeholder="$ 0"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="salary-results">
-                                                    <div className="result-row">
-                                                        <span>Sueldo Bruto</span>
-                                                        <strong>{sueldo > 0 ? `$ ${sueldo.toLocaleString()}` : '---'}</strong>
-                                                    </div>
-                                                    <div className="result-row highlight">
-                                                        <span>Resto a pagar</span>
-                                                        <strong>{resto !== 0 ? `$ ${resto.toLocaleString()}` : '---'}</strong>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    )}
                                 </div>
                                 <button className="btn-confirm-full" onClick={saveSalaries} style={{ marginTop: '1.5rem' }}>
                                     <Save size={18} /> Guardar todos los sueldos
@@ -2819,6 +2871,26 @@ function App() {
                                     </div>
                                     <div className="form-group-row">
                                         <div className="form-group">
+                                            <label>Disciplina</label>
+                                            <select value={newStudent.disciplina} onChange={e => setNewStudent({ ...newStudent, disciplina: e.target.value })}>
+                                                <option value="">Selecciona...</option>
+                                                {disciplines.map(d => (
+                                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Horario Preferido</label>
+                                            <select value={newStudent.horario} onChange={e => setNewStudent({ ...newStudent, horario: e.target.value })}>
+                                                <option value="">Selecciona...</option>
+                                                {schedules.map(s => (
+                                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="form-group-row">
+                                        <div className="form-group">
                                             <label>Tipo</label>
                                             <select
                                                 value={newNotification.type}
@@ -3090,6 +3162,31 @@ function App() {
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Importación de Datos</h3>
                                 <p className="report-subtitle">Sincroniza tus datos locales con la planilla central.</p>
+                                <div className="badges" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Disciplina</label>
+                                    <select
+                                        value={selectedStudent?.disciplina || ''}
+                                        onChange={e => updateStudentField('disciplina', e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', marginBottom: '0.5rem' }}
+                                    >
+                                        <option value="">Sin asignar</option>
+                                        {disciplines.map(d => (
+                                            <option key={d.id} value={d.name}>{d.name}</option>
+                                        ))}
+                                    </select>
+
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Horario Adjudicado</label>
+                                    <select
+                                        value={selectedStudent?.horario || ''}
+                                        onChange={e => updateStudentField('horario', e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0', width: '100%', marginBottom: '1rem' }}
+                                    >
+                                        <option value="">Sin asignar</option>
+                                        {schedules.map(s => (
+                                            <option key={s.id} value={s.name}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <div className="list-actions" style={{ marginTop: '1rem', flexDirection: 'column', gap: '0.75rem' }}>
                                     <button className="btn-secondary" style={{ width: '100%' }} onClick={() => fileInputRef.current.click()}>
                                         <Save size={20} /> <span style={{ marginLeft: '0.5rem' }}>Importar CSV Local</span>
@@ -3431,74 +3528,76 @@ function App() {
             }
 
             {/* GLOBAL CAMERA OVERLAY - position fixed, always on top */}
-            {showCamera && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    background: 'rgba(0,0,0,0.92)',
-                    zIndex: 99999,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '1rem',
-                    padding: '1rem'
-                }}>
-                    <p style={{ color: '#a5b4fc', fontWeight: '600', fontSize: '1rem', marginBottom: '0.25rem' }}>
-                        📷 Coloca el DNI frente a la cámara
-                    </p>
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        style={{
-                            width: '100%',
-                            maxWidth: '480px',
-                            borderRadius: '12px',
-                            border: '2px solid #6366f1',
-                            background: '#000'
-                        }}
-                    />
-                    {ocrLoading ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                            <div className="ocr-spinner" />
-                            <span style={{ color: '#fff', fontSize: '0.9rem' }}>Analizando DNI con OCR...</span>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                            <button
-                                style={{
-                                    background: '#6366f1',
-                                    color: '#fff',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '0.75rem 2rem',
-                                    fontSize: '1rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                }}
-                                onClick={handleCameraCapture}
-                            >
-                                📸 Capturar DNI
-                            </button>
-                            <button
-                                style={{
-                                    background: 'transparent',
-                                    color: '#94a3b8',
-                                    border: '1px solid #334155',
-                                    borderRadius: '8px',
-                                    padding: '0.75rem 1.5rem',
-                                    fontSize: '1rem',
-                                    cursor: 'pointer'
-                                }}
-                                onClick={() => setShowCamera(false)}
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+            {
+                showCamera && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.92)',
+                        zIndex: 99999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '1rem',
+                        padding: '1rem'
+                    }}>
+                        <p style={{ color: '#a5b4fc', fontWeight: '600', fontSize: '1rem', marginBottom: '0.25rem' }}>
+                            📷 Coloca el DNI frente a la cámara
+                        </p>
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            style={{
+                                width: '100%',
+                                maxWidth: '480px',
+                                borderRadius: '12px',
+                                border: '2px solid #6366f1',
+                                background: '#000'
+                            }}
+                        />
+                        {ocrLoading ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div className="ocr-spinner" />
+                                <span style={{ color: '#fff', fontSize: '0.9rem' }}>Analizando DNI con OCR...</span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                                <button
+                                    style={{
+                                        background: '#6366f1',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '0.75rem 2rem',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={handleCameraCapture}
+                                >
+                                    📸 Capturar DNI
+                                </button>
+                                <button
+                                    style={{
+                                        background: 'transparent',
+                                        color: '#94a3b8',
+                                        border: '1px solid #334155',
+                                        borderRadius: '8px',
+                                        padding: '0.75rem 1.5rem',
+                                        fontSize: '1rem',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => setShowCamera(false)}
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )
+            }
 
             <div className="toast-container">
                 {toasts.map(toast => (
@@ -3514,7 +3613,7 @@ function App() {
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
             />
-        </div>
+        </div >
     )
 }
 

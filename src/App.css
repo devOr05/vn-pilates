@@ -1426,12 +1426,14 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    width: 100%;
 }
 
 .salary-inputs .input-group {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    width: 100%;
 }
 
 .salary-inputs label {
@@ -1495,6 +1497,30 @@ body {
     border-radius: 12px;
     margin-bottom: 2rem;
     border: 1px dashed var(--border);
+}
+
+.admin-invite-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    width: 100%;
+}
+
+.admin-invite-form input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.95rem;
+    width: 100%;
+}
+
+.admins-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
 }
 
 .summary-item {
@@ -1622,12 +1648,15 @@ body {
 
 .form-group-row {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
+    width: 100%;
 }
 
 .form-group-row .form-group {
     flex: 1;
+    width: 100%;
 }
 
 .form-divider {
@@ -2050,6 +2079,25 @@ body {
         flex: 1;
     }
 
+    .form-group-row {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .admin-invite-form {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .salary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .salary-inputs {
+        flex-direction: row;
+        align-items: flex-end;
+    }
+
     .dashboard {
         padding: 2rem;
     }
@@ -2388,10 +2436,40 @@ body {
     border-top: 1px solid #e2e8f0;
     padding-top: 0.75rem;
 }
+
 /* Schedule card in student dashboard */
-.schedule-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; border: 1px solid var(--border-color); }
-.schedule-details { display: flex; flex-direction: column; gap: 0.75rem; }
-.schedule-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
-.schedule-row:last-child { border-bottom: none; }
-.schedule-label { font-size: 0.85rem; color: var(--text-muted); }
-.schedule-value { font-weight: 600; color: var(--text-main); font-size: 0.95rem; }
+.schedule-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+.schedule-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.schedule-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.schedule-row:last-child {
+    border-bottom: none;
+}
+
+.schedule-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.schedule-value {
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 0.95rem;
+}
