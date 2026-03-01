@@ -25,7 +25,9 @@ import {
     FileCheck,
     LogOut,
     Mail,
-    Lock
+    Lock,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { parsePilatesCSV, cleanMoneyString } from './utils/dataParser'
@@ -81,6 +83,7 @@ function App() {
     const [authMode, setAuthMode] = useState('login'); // login | signup
     const [authEmail, setAuthEmail] = useState('');
     const [authPassword, setAuthPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [authLoading, setAuthLoading] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [ocrLoading, setOcrLoading] = useState(false);
@@ -358,7 +361,7 @@ function App() {
                     email: authEmail,
                     password: authPassword,
                     options: {
-                        emailRedirectTo: window.location.origin
+                        emailRedirectTo: 'https://gestion-flex.vercel.app/'
                     }
                 });
                 if (error) {
@@ -376,6 +379,8 @@ function App() {
             } else if (error.message.includes('User already registered') || error.message.includes('already exists')) {
                 showToast("Este email ya está registrado. Por favor, inicia sesión.", "error");
                 setAuthMode('login'); // Switch to login tab automatically
+            } else if (error.message.includes('Invalid login credentials')) {
+                showToast("Email o contraseña incorrectos. Verifica tus datos o regístrate.", "error");
             } else {
                 showToast(error.message, "error");
             }
@@ -391,7 +396,7 @@ function App() {
                 type: 'signup',
                 email: authEmail,
                 options: {
-                    emailRedirectTo: window.location.origin
+                    emailRedirectTo: 'https://gestion-flex.vercel.app/'
                 }
             });
             if (error) throw error;
@@ -1900,14 +1905,28 @@ function App() {
                             </div>
                             <div className="form-group">
                                 <label><Lock size={16} /> Contraseña</label>
-                                <input
-                                    type="password"
-                                    required
-                                    value={authPassword}
-                                    onChange={e => setAuthPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    minLength="6"
-                                />
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        required
+                                        value={authPassword}
+                                        onChange={e => setAuthPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        minLength="6"
+                                        style={{ width: '100%', paddingRight: '40px' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            position: 'absolute', right: '10px', background: 'none', border: 'none',
+                                            color: 'var(--text-muted)', cursor: 'pointer', padding: '5px', display: 'flex'
+                                        }}
+                                        title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
                                 {authMode === 'signup' && (
                                     <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.4rem', fontSize: '0.8rem' }}>Mínimo 6 caracteres</small>
                                 )}
