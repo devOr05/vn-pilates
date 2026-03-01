@@ -373,6 +373,9 @@ function App() {
             if (error.message.includes('Email not confirmed')) {
                 showToast("Debes confirmar tu email antes de entrar. Revisa tu bandeja de entrada (y spam).", "error");
                 setShowResend(true);
+            } else if (error.message.includes('User already registered') || error.message.includes('already exists')) {
+                showToast("Este email ya está registrado. Por favor, inicia sesión.", "error");
+                setAuthMode('login'); // Switch to login tab automatically
             } else {
                 showToast(error.message, "error");
             }
@@ -442,7 +445,16 @@ function App() {
             await supabase.from('students').delete().eq('workspace_id', wid);
             await supabase.from('workspace_members').delete().eq('workspace_id', wid);
             await supabase.from('workspaces').delete().eq('id', wid);
+            
+            // Delete the user from Supabase Auth via RPC
+            const { error: rpcError } = await supabase.rpc('delete_user_account');
+            if (rpcError) {
+                console.error("Error in delete_user_account RPC:", rpcError);
+                showToast("No se pudo borrar la cuenta principal (RPC error). Contacte a soporte.", "error");
+            }
+            
             await supabase.auth.signOut();
+            showToast("Tu cuenta y todos tus datos han sido eliminados permanentemente", "success");
         } catch (err) {
             console.error("Error deleting admin:", err);
             showToast("Error al eliminar la cuenta.", "error");
@@ -1821,60 +1833,91 @@ function App() {
     if (!session && !isStudentMode) {
         return (
             <div className="auth-container">
-                <div className="auth-card animate-fade-in">
-                    <div className="auth-header">
-                        <div className="auth-logo">
-                            <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
-                        </div>
-                        <h2>{authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}</h2>
-                        <p>{authMode === 'login' ? 'Bienvenido de nuevo' : `Únete a ${userWorkspace?.name || 'Gestión Flex'} hoy`}</p>
+                <div className="auth-card animate-fade-in" style={{ padding: '0', overflow: 'hidden' }}>
+                    
+                    {/* Auth Tabs */}
+                    <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
+                        <button 
+                            type="button"
+                            onClick={() => setAuthMode('login')}
+                            style={{
+                                flex: 1, padding: '1.2rem', background: 'none', border: 'none', 
+                                borderBottom: authMode === 'login' ? '3px solid var(--primary-color)' : '3px solid transparent',
+                                color: authMode === 'login' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: '600', fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            INICIAR SESIÓN
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setAuthMode('signup')}
+                            style={{
+                                flex: 1, padding: '1.2rem', background: 'none', border: 'none',
+                                borderBottom: authMode === 'signup' ? '3px solid var(--primary-color)' : '3px solid transparent',
+                                color: authMode === 'signup' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: '600', fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                        >
+                            CREAR CUENTA
+                        </button>
                     </div>
 
-                    <form className="auth-form" onSubmit={handleAuth}>
-                        <div className="form-group">
-                            <label><Mail size={16} /> Email</label>
-                            <input
-                                type="email"
-                                required
-                                value={authEmail}
-                                onChange={e => setAuthEmail(e.target.value)}
-                                placeholder="tu@email.com"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label><Lock size={16} /> Contraseña</label>
-                            <input
-                                type="password"
-                                required
-                                value={authPassword}
-                                onChange={e => setAuthPassword(e.target.value)}
-                                placeholder="••••••••"
-                            />
+                    <div style={{ padding: '2rem' }}>
+                        <div className="auth-header" style={{ marginBottom: '1.5rem' }}>
+                            <div className="auth-logo">
+                                <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
+                            </div>
+                            <h2 style={{ fontSize: '1.3rem', marginTop: '1rem' }}>
+                                {authMode === 'login' ? 'Bienvenido de nuevo' : 'Comienza tu prueba hoy'}
+                            </h2>
+                            <p style={{ margin: 0 }}>
+                                {authMode === 'login' ? 'Ingresa tus credenciales para continuar' : 'Crea tu cuenta gratis en segundos'}
+                            </p>
                         </div>
 
-                        <button className="btn-confirm-full" type="submit" disabled={authLoading}>
-                            {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
-                        </button>
+                        <form className="auth-form" onSubmit={handleAuth}>
+                            <div className="form-group">
+                                <label><Mail size={16} /> Email</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={authEmail}
+                                    onChange={e => setAuthEmail(e.target.value)}
+                                    placeholder="tu@email.com"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label><Lock size={16} /> Contraseña</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={authPassword}
+                                    onChange={e => setAuthPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    minLength="6"
+                                />
+                                {authMode === 'signup' && (
+                                    <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.4rem', fontSize: '0.8rem' }}>Mínimo 6 caracteres</small>
+                                )}
+                            </div>
 
-                        {showResend && authMode === 'login' && (
-                            <button
-                                type="button"
-                                className="btn-secondary-full"
-                                style={{ marginTop: '1rem', background: '#f8fafc', border: '1px solid var(--border)' }}
-                                onClick={handleResendConfirmation}
-                                disabled={authLoading}
-                            >
-                                <Mail size={16} /> Reenviar Email de Confirmación
+                            <button className="btn-confirm-full" type="submit" disabled={authLoading} style={{ marginTop: '0.5rem' }}>
+                                {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
                             </button>
-                        )}
-                    </form>
 
-                    <div className="auth-footer">
-                        {authMode === 'login' ? (
-                            <p>¿No tienes cuenta? <button onClick={() => setAuthMode('signup')}>Regístrate</button></p>
-                        ) : (
-                            <p>¿Ya tienes cuenta? <button onClick={() => setAuthMode('login')}>Inicia Sesión</button></p>
-                        )}
+                            {showResend && authMode === 'login' && (
+                                <button
+                                    type="button"
+                                    className="btn-secondary-full"
+                                    style={{ marginTop: '1rem', background: '#f8fafc', border: '1px solid var(--border)' }}
+                                    onClick={handleResendConfirmation}
+                                    disabled={authLoading}
+                                >
+                                    <Mail size={16} /> Reenviar Email de Confirmación
+                                </button>
+                            )}
+                        </form>
                     </div>
                 </div>
             </div>
