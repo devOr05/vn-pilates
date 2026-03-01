@@ -652,6 +652,8 @@ function App() {
     const [editExpenseData, setEditExpenseData] = useState({ description: '', amount: '' });
     const [fileExpenses, setFileExpenses] = useState([]);
     const fileInputRef = useRef(null);
+    const [importDiscipline, setImportDiscipline] = useState('');
+    const [importSchedule, setImportSchedule] = useState('');
 
     // Initialization on Mount
     useEffect(() => {
