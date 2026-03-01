@@ -446,6 +446,11 @@ function App() {
             await supabase.from('workspace_members').delete().eq('workspace_id', wid);
             await supabase.from('workspaces').delete().eq('id', wid);
 
+            // Eliminar public.profiles para no bloquear el borrado de auth.users (Foreign Key Constraint)
+            if (session?.user?.id) {
+                await supabase.from('profiles').delete().eq('id', session.user.id);
+            }
+
             // Delete the user from Supabase Auth via RPC
             const { error: rpcError } = await supabase.rpc('delete_user_account');
             if (rpcError) {
