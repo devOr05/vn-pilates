@@ -2473,3 +2473,35 @@ body {
     color: var(--text-main);
     font-size: 0.95rem;
 }
+
+/* Settings Responsive Utilities */
+.settings-two-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .settings-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.weekly-grid-container {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+}
+
+.weekly-grid-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 200px;
+    scroll-snap-align: start;
+}

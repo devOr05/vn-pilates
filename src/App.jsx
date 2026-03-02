@@ -3553,7 +3553,7 @@ function App() {
                                                 value={newDiscipline.name}
                                                 onChange={e => setNewDiscipline({ ...newDiscipline, name: e.target.value })}
                                             />
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                            <div className="settings-two-col">
                                                 <input
                                                     type="number"
                                                     placeholder="Cupo Máximo"
@@ -3634,7 +3634,7 @@ function App() {
                                                     ))}
                                                 </div>
                                             </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                            <div className="settings-two-col" style={{ gap: '0.5rem' }}>
                                                 <div style={{ flex: '1', display: 'flex', flexDirection: 'column' }}>
                                                     <label style={{ fontSize: '0.75rem', marginBottom: '2px', color: 'var(--text-muted)' }}>Inicio</label>
                                                     <input
@@ -3652,7 +3652,7 @@ function App() {
                                                     />
                                                 </div>
                                             </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                            <div className="settings-two-col" style={{ gap: '0.5rem' }}>
                                                 <select
                                                     value={newScheduleDiscipline}
                                                     onChange={e => setNewScheduleDiscipline(e.target.value)}
@@ -3771,6 +3771,28 @@ function App() {
                                         >
                                             <Save size={18} /> Ver Planilla
                                         </button>
+                                    </div>
+                                </div>
+
+                                {/* Weekly Grid */}
+                                <div style={{ marginTop: '3rem' }}>
+                                    <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)', fontSize: '1.1rem' }}>📅 Agenda Semanal Global</h4>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Vista general de todos los horarios programados.</p>
+                                    <div className="weekly-grid-container">
+                                        {['L', 'M', 'X', 'J', 'V', 'S'].map(day => (
+                                            <div key={day} className="weekly-grid-column">
+                                                <h5 style={{ textAlign: 'center', padding: '0.6rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', margin: 0 }}>
+                                                    {day === 'L' ? 'Lunes' : day === 'M' ? 'Martes' : day === 'X' ? 'Miércoles' : day === 'J' ? 'Jueves' : day === 'V' ? 'Viernes' : 'Sábado'}
+                                                </h5>
+                                                {schedules.filter(s => s.days && s.days.includes(day)).sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
+                                                    <div key={s.id} style={{ background: 'white', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary-color)', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                                        <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{s.startTime} - {s.endTime}</div>
+                                                        <div style={{ marginTop: '0.4rem', color: 'var(--text-color)', fontWeight: '500' }}>{s.discipline}</div>
+                                                        {s.teacherId && <div style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: 'var(--primary-color)', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>👨‍🏫 {personnelList.find(p => p.id === s.teacherId)?.name}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
