@@ -641,7 +641,6 @@ function App() {
     // Disciplines & Schedules (admin-configurable)
     const [disciplines, setDisciplines] = useState([]);
     const [schedules, setSchedules] = useState([]);
-    const [newDiscipline, setNewDiscipline] = useState('');
     const [newSchedule, setNewSchedule] = useState('');
     const [newScheduleDiscipline, setNewScheduleDiscipline] = useState('');
 
@@ -802,12 +801,23 @@ function App() {
         showToast("Personal eliminado", "error");
     };
 
-    const addDiscipline = async (name) => {
-        if (!name.trim()) return;
-        const newD = { id: Date.now().toString(), name: name.trim() };
+    const [newDiscipline, setNewDiscipline] = useState({ name: '', maxCapacity: '', requirements: '', features: '' });
+
+    const addDiscipline = async () => {
+        if (!newDiscipline.name.trim()) {
+            showToast("Debes ingresar un nombre para la disciplina", "error");
+            return;
+        }
+        const newD = {
+            id: Date.now().toString(),
+            name: newDiscipline.name.trim(),
+            maxCapacity: newDiscipline.maxCapacity ? parseInt(newDiscipline.maxCapacity) : null,
+            requirements: newDiscipline.requirements.trim(),
+            features: newDiscipline.features.trim()
+        };
         const updated = [...disciplines, newD];
         setDisciplines(updated);
-        setNewDiscipline('');
+        setNewDiscipline({ name: '', maxCapacity: '', requirements: '', features: '' });
         await saveConfigArray('disciplines', updated);
         showToast("Disciplina agregada");
     };
@@ -819,15 +829,39 @@ function App() {
         showToast("Disciplina eliminada", "error");
     };
 
-    const addSchedule = async (name) => {
-        if (!name.trim() || !newScheduleDiscipline) {
-            showToast("Por favor ingresa el horario y escoge una disciplina", "error");
+    const [newScheduleStart, setNewScheduleStart] = useState('');
+    const [newScheduleEnd, setNewScheduleEnd] = useState('');
+    const [newScheduleTeacher, setNewScheduleTeacher] = useState('');
+
+    const addSchedule = async () => {
+        if (!newScheduleStart || !newScheduleEnd || !newScheduleDiscipline) {
+            showToast("Por favor ingresa hora de inicio, fin y escoge una disciplina", "error");
             return;
         }
-        const newS = { id: Date.now().toString(), name: name.trim(), discipline: newScheduleDiscipline };
+        // Calculate difference to validate
+        const startPath = newScheduleStart.split(':');
+        const endPath = newScheduleEnd.split(':');
+        const startMins = parseInt(startPath[0]) * 60 + parseInt(startPath[1]);
+        const endMins = parseInt(endPath[0]) * 60 + parseInt(endPath[1]);
+        if (endMins <= startMins) {
+            showToast("La hora de fin debe ser mayor a la hora de inicio", "error");
+            return;
+        }
+
+        const name = `${newScheduleStart} a ${newScheduleEnd}`;
+        const newS = {
+            id: Date.now().toString(),
+            name: name,
+            startTime: newScheduleStart,
+            endTime: newScheduleEnd,
+            discipline: newScheduleDiscipline,
+            teacherId: newScheduleTeacher
+        };
         const updated = [...schedules, newS];
         setSchedules(updated);
-        setNewSchedule('');
+        setNewScheduleStart('');
+        setNewScheduleEnd('');
+        setNewScheduleTeacher('');
         setNewScheduleDiscipline('');
         await saveConfigArray('schedules', updated);
         showToast("Horario agregado y asignado a " + newScheduleDiscipline);
@@ -2401,7 +2435,6 @@ function App() {
 
                     {currentView === 'alumnos' && !selectedStudent && (
                         <div className="header-actions">
-                            <button className="btn-secondary" onClick={() => setShowPhoneAddModal(true)}><Plus size={18} /> Por número</button>
                             <button className="btn-add" onClick={() => setShowAddModal(true)}><Plus size={18} /> Nuevo {getLabel(true)}</button>
                         </div>
                     )}
@@ -2665,7 +2698,25 @@ function App() {
                                         </p>
                                     ) : (
                                         personnelList.map(person => {
-                                            const data = salaryData.find(s => s.personId === person.id) || { hours: 0, hourlyValue: 0, advances: 0 };
+                                            // Calculate automatic hours from assigned schedules
+                                            let autoHours = 0;
+                                            schedules.forEach(s => {
+                                                if (s.teacherId === person.id && s.startTime && s.endTime) {
+                                                    const startPath = s.startTime.split(':');
+                                                    const endPath = s.endTime.split(':');
+                                                    const startMins = parseInt(startPath[0]) * 60 + parseInt(startPath[1]);
+                                                    const endMins = parseInt(endPath[0]) * 60 + parseInt(endPath[1]);
+                                                    const diffMins = endMins - startMins;
+                                                    // Multiply by 4 assuming 4 weeks a month for monthly salary calculation
+                                                    autoHours += (diffMins / 60) * 4;
+                                                }
+                                            });
+
+                                            const savedData = salaryData.find(s => s.personId === person.id) || { hourlyValue: 0, advances: 0 };
+                                            // Prefer auto calculated hours, fallback to saved if auto is 0, allow override.
+                                            const currentHours = autoHours > 0 ? autoHours : (savedData.hours || 0);
+
+                                            const data = { ...savedData, hours: currentHours };
                                             const sueldo = data.hours * data.hourlyValue;
                                             const resto = sueldo - data.advances;
                                             return (
@@ -2679,7 +2730,7 @@ function App() {
                                                             <input
                                                                 type="text"
                                                                 inputMode="decimal"
-                                                                value={data.hours || ''}
+                                                                value={data.hours ? data.hours.toFixed(2).replace(/\.00$/, '') : ''}
                                                                 onChange={e => {
                                                                     const val = e.target.value.replace(',', '.');
                                                                     if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -2688,6 +2739,7 @@ function App() {
                                                                 }}
                                                                 placeholder="0 hs"
                                                             />
+                                                            {autoHours > 0 && <span style={{ fontSize: '0.65rem', color: '#10b981', marginTop: '2px' }}>Calculado ({autoHours} hs)</span>}
                                                         </div>
                                                         <div className="input-group">
                                                             <label>Valor Hora</label>
@@ -3088,6 +3140,11 @@ function App() {
                                                 <option value="Todos">Todos los alumnos</option>
                                                 <option value="Activos">Solo Activos</option>
                                                 <option value="Pendientes">Solo Pendientes</option>
+                                                {personnelList.length > 0 && <optgroup label="Profesores / Personal">
+                                                    {personnelList.map(p => (
+                                                        <option key={p.id} value={`Profesor: ${p.name}`}>{p.name}</option>
+                                                    ))}
+                                                </optgroup>}
                                             </select>
                                         </div>
                                     </div>
@@ -3287,23 +3344,52 @@ function App() {
                                     <div>
                                         <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Disciplinas</h4>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Pilates Reformer</p>
-                                        <div className="admin-invite-form" style={{ marginBottom: '1rem' }}>
+                                        <div className="admin-invite-form" style={{ marginBottom: '1rem', flexDirection: 'column', gap: '0.8rem', alignItems: 'stretch' }}>
                                             <input
                                                 type="text"
-                                                placeholder="Nueva disciplina..."
-                                                value={newDiscipline}
-                                                onChange={e => setNewDiscipline(e.target.value)}
+                                                placeholder="Nombre de disciplina (ej: Pilates Reformer)..."
+                                                value={newDiscipline.name}
+                                                onChange={e => setNewDiscipline({ ...newDiscipline, name: e.target.value })}
                                             />
-                                            <button className="btn-add" onClick={() => addDiscipline(newDiscipline)}>
-                                                <Plus size={18} />
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Cupo Máximo"
+                                                    value={newDiscipline.maxCapacity}
+                                                    onChange={e => setNewDiscipline({ ...newDiscipline, maxCapacity: e.target.value })}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Requisitos (opcional)..."
+                                                    value={newDiscipline.requirements}
+                                                    onChange={e => setNewDiscipline({ ...newDiscipline, requirements: e.target.value })}
+                                                />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Características de la actividad (opcional)..."
+                                                value={newDiscipline.features}
+                                                onChange={e => setNewDiscipline({ ...newDiscipline, features: e.target.value })}
+                                            />
+                                            <button className="btn-add" onClick={addDiscipline} style={{ alignSelf: 'flex-start' }}>
+                                                <Plus size={18} /> Agregar Disciplina
                                             </button>
                                         </div>
                                         <div className="admins-list">
                                             {disciplines.length > 0 ? disciplines.map(d => (
                                                 <div key={d.id} className="admin-item" style={{ padding: '0.5rem' }}>
-                                                    <div className="admin-info">
-                                                        <span className="n-type general" style={{ borderRadius: '50%', width: '8px', height: '8px', padding: 0 }}></span>
-                                                        <span style={{ fontSize: '0.9rem' }}>{d.name}</span>
+                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <span className="n-type general" style={{ borderRadius: '50%', width: '8px', height: '8px', padding: 0 }}></span>
+                                                            <strong style={{ fontSize: '0.95rem' }}>{d.name}</strong>
+                                                            {d.maxCapacity && <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '12px' }}>Cupo: {d.maxCapacity}</span>}
+                                                        </div>
+                                                        {(d.requirements || d.features) && (
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                                {d.requirements && <div><strong>Req:</strong> {d.requirements}</div>}
+                                                                {d.features && <div><strong>Caract:</strong> {d.features}</div>}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)} style={{ padding: '0.3rem' }}>
                                                         <Trash2 size={14} />
@@ -3317,33 +3403,64 @@ function App() {
                                     <div>
                                         <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Horarios</h4>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Lunes y Miércoles 14hs</p>
-                                        <div className="admin-invite-form" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                            <input
-                                                type="text"
-                                                placeholder="Nuevo horario..."
-                                                value={newSchedule}
-                                                onChange={e => setNewSchedule(e.target.value)}
-                                                style={{ flex: '1 1 150px' }}
-                                            />
-                                            <select
-                                                value={newScheduleDiscipline}
-                                                onChange={e => setNewScheduleDiscipline(e.target.value)}
-                                                style={{ flex: '1 1 150px', cursor: 'pointer', padding: '0.9rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)' }}
-                                            >
-                                                <option value="">Asignar Disciplina...</option>
-                                                {disciplines.map(d => (
-                                                    <option key={d.id} value={d.name}>{d.name}</option>
-                                                ))}
-                                            </select>
-                                            <button className="btn-add" onClick={() => addSchedule(newSchedule)}>
-                                                <Plus size={18} />
+                                        <div className="admin-invite-form" style={{ marginBottom: '1rem', flexDirection: 'column', gap: '0.8rem', alignItems: 'stretch' }}>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <div style={{ flex: '1', display: 'flex', flexDirection: 'column' }}>
+                                                    <label style={{ fontSize: '0.75rem', marginBottom: '2px', color: 'var(--text-muted)' }}>Inicio</label>
+                                                    <input
+                                                        type="time"
+                                                        value={newScheduleStart}
+                                                        onChange={e => setNewScheduleStart(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: '1', display: 'flex', flexDirection: 'column' }}>
+                                                    <label style={{ fontSize: '0.75rem', marginBottom: '2px', color: 'var(--text-muted)' }}>Fin</label>
+                                                    <input
+                                                        type="time"
+                                                        value={newScheduleEnd}
+                                                        onChange={e => setNewScheduleEnd(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                                <select
+                                                    value={newScheduleDiscipline}
+                                                    onChange={e => setNewScheduleDiscipline(e.target.value)}
+                                                    style={{ cursor: 'pointer', padding: '0.9rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)' }}
+                                                >
+                                                    <option value="">Asignar Disciplina...</option>
+                                                    {disciplines.map(d => (
+                                                        <option key={d.id} value={d.name}>{d.name}</option>
+                                                    ))}
+                                                </select>
+                                                <select
+                                                    value={newScheduleTeacher}
+                                                    onChange={e => setNewScheduleTeacher(e.target.value)}
+                                                    style={{ cursor: 'pointer', padding: '0.9rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)' }}
+                                                >
+                                                    <option value="">Asignar Profesor... (Opcional)</option>
+                                                    {personnelList.map(p => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <button className="btn-add" onClick={addSchedule} style={{ alignSelf: 'flex-start' }}>
+                                                <Plus size={18} /> Agregar Horario
                                             </button>
                                         </div>
                                         <div className="admins-list">
                                             {schedules.length > 0 ? schedules.map(s => (
                                                 <div key={s.id} className="admin-item" style={{ padding: '0.5rem' }}>
-                                                    <div className="admin-info">
-                                                        <span style={{ fontSize: '0.9rem' }}>🕒 {s.name} {s.discipline && <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', marginLeft: '0.5rem', background: '#eef2ff', padding: '2px 6px', borderRadius: '12px' }}>{s.discipline}</span>}</span>
+                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.9rem' }}>
+                                                            🕒 {s.name}
+                                                            {s.discipline && <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', marginLeft: '0.5rem', background: '#eef2ff', padding: '2px 6px', borderRadius: '12px' }}>{s.discipline}</span>}
+                                                        </span>
+                                                        {s.teacherId && (
+                                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                                👨‍🏫 {personnelList.find(p => p.id === s.teacherId)?.name || 'Profesor Eliminado'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)} style={{ padding: '0.3rem' }}>
                                                         <Trash2 size={14} />
@@ -3510,6 +3627,12 @@ function App() {
                     <div className="modal-overlay">
                         <div className="modal-card">
                             <h3>Nuevo {getLabel(true)}</h3>
+
+                            <div className="modal-actions-top" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
+                                <button className="btn-secondary" onClick={() => { setShowAddModal(false); setShowPhoneAddModal(true); }}>
+                                    <Plus size={18} /> Por número
+                                </button>
+                            </div>
 
                             <div className="ocr-section-compact" style={{ marginBottom: '1rem', textAlign: 'center' }}>
                                 <button className="btn-ocr" onClick={() => { setIsStudentMode(false); setShowCamera(true); }}>
