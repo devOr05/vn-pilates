@@ -1,0 +1,17 @@
+[
+  {
+    "id": "",
+    "location": {
+      "column": 8,
+      "file": "src/App.jsx",
+      "length": 2,
+      "line": 2231,
+      "lineText": "        if (!isLoaded) return <div className=\"loading-screen\">Cargando datos del profesor...</div>;",
+      "namespace": "",
+      "suggestion": ""
+    },
+    "notes": [],
+    "pluginName": "",
+    "text": "Unexpected \"if\""
+  }
+]

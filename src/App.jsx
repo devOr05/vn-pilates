@@ -63,6 +63,8 @@ function App() {
 
     const [registrationToken, setRegistrationToken] = useState(null);
     const [isStudentMode, setIsStudentMode] = useState(false);
+    const [isTeacherMode, setIsTeacherMode] = useState(false);
+    const [teacherTokenData, setTeacherTokenData] = useState(null);
     const [studentStep, setStudentStep] = useState(1); // 1: Datos, 2: Disciplina/Horario, 3: Dashboard
     const [studentData, setStudentData] = useState({
         name: '',
@@ -633,16 +635,19 @@ function App() {
 
     // Salary/Honorarios State - Dynamic Personnel
     const [salaryData, setSalaryData] = useState([]);
-    const [personnelList, setPersonnelList] = useState([]); // Array of {id, name}
+    const [personnelList, setPersonnelList] = useState([]); // Array of {id, name, teacherToken}
     const [editWorkspaceName, setEditWorkspaceName] = useState('');
     const [editAdminName, setEditAdminName] = useState('');
     const [newPersonName, setNewPersonName] = useState('');
+    const [editingPersonId, setEditingPersonId] = useState(null);
 
     // Disciplines & Schedules (admin-configurable)
     const [disciplines, setDisciplines] = useState([]);
     const [schedules, setSchedules] = useState([]);
-    const [newSchedule, setNewSchedule] = useState('');
+    const [editingDisciplineId, setEditingDisciplineId] = useState(null);
+    const [editingScheduleId, setEditingScheduleId] = useState(null);
     const [newScheduleDiscipline, setNewScheduleDiscipline] = useState('');
+    const [newScheduleDays, setNewScheduleDays] = useState([]);
 
     const [newStudent, setNewStudent] = useState({
         name: '',
@@ -671,12 +676,77 @@ function App() {
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
+        const teacherToken = urlParams.get('teacherToken');
         if (token) {
             setRegistrationToken(token);
             setIsStudentMode(true);
             fetchStudentData(token);
+        } else if (teacherToken) {
+            setIsTeacherMode(true);
+            fetchTeacherData(teacherToken);
         }
     }, []);
+
+    const fetchTeacherData = async (tToken) => {
+        setIsInitialLoad(true);
+        try {
+            const { data, error } = await supabase
+                .from('workspace_configs')
+                .select('workspace_id, config_value')
+                .eq('config_key', 'personnel_list');
+
+            if (data) {
+                let foundTeacher = null;
+                let foundWorkspaceId = null;
+                for (let row of data) {
+                    if (row.config_value && Array.isArray(row.config_value)) {
+                        const t = row.config_value.find(p => p.teacherToken === tToken);
+                        if (t) {
+                            foundTeacher = t;
+                            foundWorkspaceId = row.workspace_id;
+                            break;
+                        }
+                    }
+                }
+                if (foundTeacher) {
+                    setTeacherTokenData(foundTeacher);
+                    const { data: configData } = await supabase
+                        .from('workspace_configs')
+                        .select('*')
+                        .eq('workspace_id', foundWorkspaceId);
+
+                    if (configData) {
+                        const discConf = configData.find(c => c.config_key === 'disciplines');
+                        const schedConf = configData.find(c => c.config_key === 'schedules');
+                        const personnelConf = configData.find(c => c.config_key === 'personnel_list');
+                        setDisciplines(discConf ? discConf.config_value : []);
+                        setSchedules(schedConf ? schedConf.config_value : []);
+                        setPersonnelList(personnelConf ? personnelConf.config_value : []);
+                    }
+
+                    const { data: stData } = await supabase
+                        .from('students')
+                        .select('id, name, status, payments(*), horario, disciplina')
+                        .eq('workspace_id', foundWorkspaceId);
+
+                    if (stData) {
+                        setStudents(stData);
+                    }
+                    const { data: notifData } = await supabase
+                        .from('notifications')
+                        .select('*')
+                        .eq('workspace_id', foundWorkspaceId);
+                    if (notifData) setNotifications(notifData);
+                }
+            }
+            setIsLoaded(true);
+            setIsInitialLoad(false);
+        } catch (e) {
+            console.error(e);
+            setIsLoaded(true);
+            setIsInitialLoad(false);
+        }
+    }
 
     const fetchStudentData = async (token) => {
         setIsInitialLoad(true);
@@ -784,15 +854,35 @@ function App() {
         }
     };
 
-    const addPerson = async (name) => {
-        if (!name.trim()) return;
-        const newPerson = { id: Date.now().toString(), name: name.trim() };
-        const updatedList = [...personnelList, newPerson];
+    const handlePersonSubmit = async () => {
+        if (!newPersonName.trim()) return;
+        let updatedList;
+        if (editingPersonId) {
+            updatedList = personnelList.map(p =>
+                p.id === editingPersonId ? { ...p, name: newPersonName.trim() } : p
+            );
+            showToast("Profesor actualizado");
+        } else {
+            const newPerson = {
+                id: Date.now().toString(),
+                name: newPersonName.trim(),
+                teacherToken: 'T-' + Math.random().toString(36).substr(2, 9)
+            };
+            updatedList = [...personnelList, newPerson];
+            showToast("Personal agregado");
+        }
         setPersonnelList(updatedList);
         setNewPersonName('');
+        setEditingPersonId(null);
         await saveConfigArray('personnel_list', updatedList);
-        showToast("Personal agregado");
     };
+
+    const editPerson = (p) => {
+        setNewPersonName(p.name);
+        setEditingPersonId(p.id);
+    };
+
+    const addPerson = (name) => { setNewPersonName(name); handlePersonSubmit(); };
 
     const removePerson = async (id) => {
         const newList = personnelList.filter(p => p.id !== id);
@@ -808,18 +898,37 @@ function App() {
             showToast("Debes ingresar un nombre para la disciplina", "error");
             return;
         }
-        const newD = {
-            id: Date.now().toString(),
+
+        const dData = {
             name: newDiscipline.name.trim(),
             maxCapacity: newDiscipline.maxCapacity ? parseInt(newDiscipline.maxCapacity) : null,
-            requirements: newDiscipline.requirements.trim(),
-            features: newDiscipline.features.trim()
+            requirements: newDiscipline.requirements?.trim() || '',
+            features: newDiscipline.features?.trim() || ''
         };
-        const updated = [...disciplines, newD];
+
+        let updated;
+        if (editingDisciplineId) {
+            updated = disciplines.map(d => d.id === editingDisciplineId ? { ...d, ...dData } : d);
+            showToast("Disciplina actualizada");
+        } else {
+            updated = [...disciplines, { id: Date.now().toString(), ...dData }];
+            showToast("Disciplina agregada");
+        }
+
         setDisciplines(updated);
         setNewDiscipline({ name: '', maxCapacity: '', requirements: '', features: '' });
+        setEditingDisciplineId(null);
         await saveConfigArray('disciplines', updated);
-        showToast("Disciplina agregada");
+    };
+
+    const editDisciplineObj = (d) => {
+        setNewDiscipline({
+            name: d.name || '',
+            maxCapacity: d.maxCapacity || '',
+            requirements: d.requirements || '',
+            features: d.features || ''
+        });
+        setEditingDisciplineId(d.id);
     };
 
     const removeDiscipline = async (id) => {
@@ -833,11 +942,24 @@ function App() {
     const [newScheduleEnd, setNewScheduleEnd] = useState('');
     const [newScheduleTeacher, setNewScheduleTeacher] = useState('');
 
+    const toggleDaySelection = (dayVal) => {
+        if (newScheduleDays.includes(dayVal)) {
+            setNewScheduleDays(newScheduleDays.filter(d => d !== dayVal));
+        } else {
+            setNewScheduleDays([...newScheduleDays, dayVal]);
+        }
+    };
+
     const addSchedule = async () => {
         if (!newScheduleStart || !newScheduleEnd || !newScheduleDiscipline) {
             showToast("Por favor ingresa hora de inicio, fin y escoge una disciplina", "error");
             return;
         }
+        if (newScheduleDays.length === 0) {
+            showToast("Por favor selecciona al menos un día", "error");
+            return;
+        }
+
         // Calculate difference to validate
         const startPath = newScheduleStart.split(':');
         const endPath = newScheduleEnd.split(':');
@@ -848,23 +970,46 @@ function App() {
             return;
         }
 
-        const name = `${newScheduleStart} a ${newScheduleEnd}`;
-        const newS = {
-            id: Date.now().toString(),
+        // Sort days logically
+        const dayOrder = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+        const sortedDays = [...newScheduleDays].sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+
+        const name = `${sortedDays.join('-')} ${newScheduleStart} a ${newScheduleEnd}`;
+        const sData = {
             name: name,
             startTime: newScheduleStart,
             endTime: newScheduleEnd,
             discipline: newScheduleDiscipline,
-            teacherId: newScheduleTeacher
+            teacherId: newScheduleTeacher,
+            days: sortedDays
         };
-        const updated = [...schedules, newS];
+
+        let updated;
+        if (editingScheduleId) {
+            updated = schedules.map(s => s.id === editingScheduleId ? { ...s, ...sData } : s);
+            showToast("Horario actualizado");
+        } else {
+            updated = [...schedules, { id: Date.now().toString(), ...sData }];
+            showToast("Horario agregado y asignado a " + newScheduleDiscipline);
+        }
+
         setSchedules(updated);
         setNewScheduleStart('');
         setNewScheduleEnd('');
         setNewScheduleTeacher('');
         setNewScheduleDiscipline('');
+        setNewScheduleDays([]);
+        setEditingScheduleId(null);
         await saveConfigArray('schedules', updated);
-        showToast("Horario agregado y asignado a " + newScheduleDiscipline);
+    };
+
+    const editScheduleObj = (s) => {
+        setNewScheduleStart(s.startTime || '');
+        setNewScheduleEnd(s.endTime || '');
+        setNewScheduleDiscipline(s.discipline || '');
+        setNewScheduleTeacher(s.teacherId || '');
+        setNewScheduleDays(s.days || []);
+        setEditingScheduleId(s.id);
     };
 
     const removeSchedule = async (id) => {
@@ -1966,7 +2111,7 @@ function App() {
         );
     }
 
-    if (!session && !isStudentMode) {
+    if (!session && !isStudentMode && !isTeacherMode) {
         return (
             <div className="auth-container">
                 <div className="auth-card animate-fade-in" style={{ padding: '0', overflow: 'hidden' }}>
@@ -2082,6 +2227,43 @@ function App() {
                 </div>
             </div>
         );
+    }
+
+    if (isTeacherMode) {
+        if (!isLoaded) return <div className="loading-screen">Cargando datos del profesor...</div>;
+        if (!teacherTokenData) return <div className="loading-screen" style={{ color: 'red' }}>Profesor no encontrado o token inválido.</div>;
+
+        const teacherSchedules = schedules.filter(s => s.teacherId === teacherTokenData.id);
+
+        return (
+            <div className="student-app-container">
+                <header className="student-header" style={{ background: 'var(--primary-color)' }}>
+                    <h1>Portal Docente</h1>
+                    <span className="welcome-msg">Hola, {teacherTokenData.name.split(' ')[0]}</span>
+                </header>
+                <main className="student-main">
+                    <div className="report-card animate-fade-in">
+                        <h3>Tus Horarios Asignados</h3>
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {teacherSchedules.length > 0 ? teacherSchedules.map(s => {
+                                const count = students.filter(st => st.horario === s.name && st.status === 'activo').length;
+                                return (
+                                    <div key={s.id} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary-color)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <strong>{s.name}</strong>
+                                            <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '0.2rem 0.5rem', borderRadius: '12px', color: 'var(--text-color)' }}>{count} inscriptos</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                                            Disciplina: {s.discipline}
+                                        </div>
+                                    </div>
+                                )
+                            }) : <p className="no-data">No tienes horarios asignados aún.</p>}
+                        </div>
+                    </div>
+                </main>
+            </div>
+        )
     }
 
     if (isStudentMode) {
@@ -3265,20 +3447,40 @@ function App() {
                                         value={newPersonName}
                                         onChange={e => setNewPersonName(e.target.value)}
                                     />
-                                    <button className="btn-add" onClick={() => addPerson(newPersonName)}>
-                                        <Plus size={18} /> Agregar
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button className="btn-add" onClick={() => addPerson(newPersonName)} style={{ flex: 1 }}>
+                                            {editingPersonId ? <Save size={18} /> : <Plus size={18} />}
+                                            {editingPersonId ? ' Guardar Cambios' : ' Agregar'}
+                                        </button>
+                                        {editingPersonId && (
+                                            <button className="btn-secondary" onClick={() => { setEditingPersonId(null); setNewPersonName(''); }} style={{ flex: 1 }}>
+                                                Cancelar
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="admins-list">
                                     {personnelList.map(p => (
-                                        <div key={p.id} className="admin-item">
-                                            <div className="admin-info">
+                                        <div key={p.id} className="admin-item" style={{ gap: '0.5rem' }}>
+                                            <div className="admin-info" style={{ flex: 1 }}>
                                                 <User size={16} />
                                                 <span>{p.name}</span>
                                             </div>
-                                            <button className="btn-icon-danger" onClick={() => removePerson(p.id)}>
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button className="btn-icon-secondary" onClick={() => editPerson(p)} title="Modificar">
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button className="btn-icon-secondary" onClick={() => {
+                                                    const url = window.location.origin + window.location.pathname + '?teacherToken=' + p.teacherToken;
+                                                    navigator.clipboard.writeText(url);
+                                                    showToast("Enlace de profesor copiado");
+                                                }} title="Copiar Enlace Portal">
+                                                    <Check size={16} />
+                                                </button>
+                                                <button className="btn-icon-danger" onClick={() => removePerson(p.id)} title="Eliminar">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -3371,14 +3573,22 @@ function App() {
                                                 value={newDiscipline.features}
                                                 onChange={e => setNewDiscipline({ ...newDiscipline, features: e.target.value })}
                                             />
-                                            <button className="btn-add" onClick={addDiscipline} style={{ alignSelf: 'flex-start' }}>
-                                                <Plus size={18} /> Agregar Disciplina
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-start' }}>
+                                                <button className="btn-add" onClick={addDiscipline}>
+                                                    {editingDisciplineId ? <Save size={18} /> : <Plus size={18} />}
+                                                    {editingDisciplineId ? ' Guardar Disciplina' : ' Agregar Disciplina'}
+                                                </button>
+                                                {editingDisciplineId && (
+                                                    <button className="btn-secondary" onClick={() => { setEditingDisciplineId(null); setNewDiscipline({ name: '', maxCapacity: '', requirements: '', features: '' }); }}>
+                                                        Cancelar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="admins-list">
                                             {disciplines.length > 0 ? disciplines.map(d => (
-                                                <div key={d.id} className="admin-item" style={{ padding: '0.5rem' }}>
-                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+                                                <div key={d.id} className="admin-item" style={{ padding: '0.5rem', alignItems: 'flex-start' }}>
+                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem', flex: 1 }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                             <span className="n-type general" style={{ borderRadius: '50%', width: '8px', height: '8px', padding: 0 }}></span>
                                                             <strong style={{ fontSize: '0.95rem' }}>{d.name}</strong>
@@ -3391,9 +3601,14 @@ function App() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)} style={{ padding: '0.3rem' }}>
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '0.3rem', alignSelf: 'center' }}>
+                                                        <button className="btn-icon-secondary" onClick={() => editDisciplineObj(d)} style={{ padding: '0.3rem' }} title="Modificar">
+                                                            <Pencil size={14} />
+                                                        </button>
+                                                        <button className="btn-icon-danger" onClick={() => removeDiscipline(d.id)} style={{ padding: '0.3rem' }} title="Eliminar">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )) : <p className="no-data" style={{ padding: '0.5rem' }}>La lista está vacía.</p>}
                                         </div>
@@ -3404,6 +3619,21 @@ function App() {
                                         <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Horarios</h4>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ej: Lunes y Miércoles 14hs</p>
                                         <div className="admin-invite-form" style={{ marginBottom: '1rem', flexDirection: 'column', gap: '0.8rem', alignItems: 'stretch' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <label style={{ fontSize: '0.75rem', marginBottom: '4px', color: 'var(--text-muted)' }}>Días de la semana</label>
+                                                <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                                    {['L', 'M', 'X', 'J', 'V', 'S'].map(d => (
+                                                        <button
+                                                            key={d}
+                                                            className="btn-toggle"
+                                                            style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', flex: 1, border: newScheduleDays.includes(d) ? '2px solid var(--primary-color)' : '1px solid var(--border)', background: newScheduleDays.includes(d) ? 'rgba(99, 102, 241, 0.1)' : 'transparent', color: newScheduleDays.includes(d) ? 'var(--primary-color)' : 'var(--text-color)' }}
+                                                            onClick={() => toggleDaySelection(d)}
+                                                        >
+                                                            {d}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                 <div style={{ flex: '1', display: 'flex', flexDirection: 'column' }}>
                                                     <label style={{ fontSize: '0.75rem', marginBottom: '2px', color: 'var(--text-muted)' }}>Inicio</label>
@@ -3444,14 +3674,22 @@ function App() {
                                                     ))}
                                                 </select>
                                             </div>
-                                            <button className="btn-add" onClick={addSchedule} style={{ alignSelf: 'flex-start' }}>
-                                                <Plus size={18} /> Agregar Horario
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-start' }}>
+                                                <button className="btn-add" onClick={addSchedule}>
+                                                    {editingScheduleId ? <Save size={18} /> : <Plus size={18} />}
+                                                    {editingScheduleId ? ' Guardar Horario' : ' Agregar Horario'}
+                                                </button>
+                                                {editingScheduleId && (
+                                                    <button className="btn-secondary" onClick={() => { setEditingScheduleId(null); setNewScheduleStart(''); setNewScheduleEnd(''); setNewScheduleTeacher(''); setNewScheduleDiscipline(''); setNewScheduleDays([]); }}>
+                                                        Cancelar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="admins-list">
                                             {schedules.length > 0 ? schedules.map(s => (
-                                                <div key={s.id} className="admin-item" style={{ padding: '0.5rem' }}>
-                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+                                                <div key={s.id} className="admin-item" style={{ padding: '0.5rem', alignItems: 'flex-start' }}>
+                                                    <div className="admin-info" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem', flex: 1 }}>
                                                         <span style={{ fontSize: '0.9rem' }}>
                                                             🕒 {s.name}
                                                             {s.discipline && <span style={{ fontSize: '0.75rem', color: 'var(--primary-color)', marginLeft: '0.5rem', background: '#eef2ff', padding: '2px 6px', borderRadius: '12px' }}>{s.discipline}</span>}
@@ -3462,9 +3700,14 @@ function App() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)} style={{ padding: '0.3rem' }}>
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '0.3rem', alignSelf: 'center' }}>
+                                                        <button className="btn-icon-secondary" onClick={() => editScheduleObj(s)} style={{ padding: '0.3rem' }} title="Modificar">
+                                                            <Pencil size={14} />
+                                                        </button>
+                                                        <button className="btn-icon-danger" onClick={() => removeSchedule(s.id)} style={{ padding: '0.3rem' }} title="Eliminar">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )) : <p className="no-data" style={{ padding: '0.5rem' }}>La lista está vacía.</p>}
                                         </div>
