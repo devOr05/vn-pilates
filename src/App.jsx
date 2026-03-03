@@ -639,6 +639,7 @@ function App() {
     const [editWorkspaceName, setEditWorkspaceName] = useState('');
     const [editAdminName, setEditAdminName] = useState('');
     const [newPersonName, setNewPersonName] = useState('');
+    const [newPersonPhone, setNewPersonPhone] = useState('');
     const [editingPersonId, setEditingPersonId] = useState(null);
 
     // Disciplines & Schedules (admin-configurable)
@@ -856,29 +857,52 @@ function App() {
 
     const handlePersonSubmit = async () => {
         if (!newPersonName.trim()) return;
+
+        // Basic phone validation if provided
+        if (newPersonPhone) {
+            const phoneRegex = /^[0-9+\s\-()]{8,20}$/;
+            if (!phoneRegex.test(newPersonPhone)) {
+                showToast("El teléfono debe tener entre 8 y 20 caracteres (solo números y símbolos + - ( ))", "error");
+                return;
+            }
+        }
+
         let updatedList;
         if (editingPersonId) {
             updatedList = personnelList.map(p =>
-                p.id === editingPersonId ? { ...p, name: newPersonName.trim() } : p
+                p.id === editingPersonId ? { ...p, name: newPersonName.trim(), phone: newPersonPhone.trim() } : p
             );
             showToast("Profesor actualizado");
         } else {
+            const newToken = 'T-' + Math.random().toString(36).substr(2, 9);
             const newPerson = {
                 id: Date.now().toString(),
                 name: newPersonName.trim(),
-                teacherToken: 'T-' + Math.random().toString(36).substr(2, 9)
+                phone: newPersonPhone.trim(),
+                teacherToken: newToken
             };
             updatedList = [...personnelList, newPerson];
-            showToast("Personal agregado");
+
+            // Ask for WhatsApp welcome message
+            if (newPerson.phone && window.confirm(`¿Deseas enviar un WhatsApp a ${newPerson.name} con su enlace personal al portal docente?`)) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                const fullLink = `${baseUrl}?teacherToken=${newToken}`;
+                const welcomeMsg = encodeURIComponent(`¡Hola ${newPerson.name}! Te han registrado como profesor/a en Gestión Flex. Ingresa a tu Portal Docente exclusivo desde este enlace para ver tus horarios y alumnos: ${fullLink}`);
+                window.open(`https://wa.me/${newPerson.phone.replace(/\D/g, '')}?text=${welcomeMsg}`, '_blank');
+            } else {
+                showToast("Personal agregado");
+            }
         }
         setPersonnelList(updatedList);
         setNewPersonName('');
+        setNewPersonPhone('');
         setEditingPersonId(null);
         await saveConfigArray('personnel_list', updatedList);
     };
 
     const editPerson = (p) => {
         setNewPersonName(p.name);
+        setNewPersonPhone(p.phone || '');
         setEditingPersonId(p.id);
     };
 
@@ -3440,20 +3464,28 @@ function App() {
                             <div className="report-card" style={{ marginTop: '1.5rem' }}>
                                 <h3>Gestionar Personal / Profesores / Profesional</h3>
                                 <p className="report-subtitle">Agrega o elimina personal para el registro de pagos y sueldos.</p>
-                                <div className="admin-invite-form">
-                                    <input
-                                        type="text"
-                                        placeholder="Nombre del profesor / profesional"
-                                        value={newPersonName}
-                                        onChange={e => setNewPersonName(e.target.value)}
-                                    />
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <div className="admin-invite-form" style={{ flexDirection: 'column', gap: '0.8rem', alignItems: 'stretch' }}>
+                                    <div className="settings-two-col" style={{ gap: '0.5rem' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Nombre del profesor / profesional"
+                                            value={newPersonName}
+                                            onChange={e => setNewPersonName(e.target.value)}
+                                        />
+                                        <input
+                                            type="tel"
+                                            placeholder="Teléfono móvil (+549...)"
+                                            value={newPersonPhone}
+                                            onChange={e => setNewPersonPhone(e.target.value)}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-start' }}>
                                         <button className="btn-add" onClick={() => addPerson(newPersonName)} style={{ flex: 1 }}>
                                             {editingPersonId ? <Save size={18} /> : <Plus size={18} />}
                                             {editingPersonId ? ' Guardar Cambios' : ' Agregar'}
                                         </button>
                                         {editingPersonId && (
-                                            <button className="btn-secondary" onClick={() => { setEditingPersonId(null); setNewPersonName(''); }} style={{ flex: 1 }}>
+                                            <button className="btn-secondary" onClick={() => { setEditingPersonId(null); setNewPersonName(''); setNewPersonPhone(''); }} style={{ flex: 1 }}>
                                                 Cancelar
                                             </button>
                                         )}
@@ -3461,12 +3493,29 @@ function App() {
                                 </div>
                                 <div className="admins-list">
                                     {personnelList.map(p => (
-                                        <div key={p.id} className="admin-item" style={{ gap: '0.5rem' }}>
-                                            <div className="admin-info" style={{ flex: 1 }}>
+                                        <div key={p.id} className="admin-item" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <div className="admin-info" style={{ flex: 1, minWidth: '200px' }}>
                                                 <User size={16} />
-                                                <span>{p.name}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span>{p.name}</span>
+                                                    {p.phone && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Móvil: {p.phone}</span>}
+                                                </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                {p.phone && (
+                                                    <a
+                                                        href={`https://wa.me/${p.phone.replace(/\D/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn-icon-secondary"
+                                                        style={{ background: '#25d366', color: 'white', borderColor: '#25d366' }}
+                                                        title="Enviar WhatsApp"
+                                                    >
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M11.9961 0C5.37109 0 0 5.37109 0 11.9961C0 14.6211 0.84375 17.0625 2.25 19.082L0.632812 23.9531L5.61328 22.3359C7.54688 23.5977 9.87891 24.3281 12.3398 24.3281C18.9648 24.3281 24.3359 18.957 24.3359 12.332C24.3359 5.70703 18.9648 0 11.9961 0ZM11.9961 22.1836C9.80859 22.1836 7.74609 21.5273 5.99609 20.3984L5.59766 20.1582L2.66406 21.1172L3.63672 18.2773L3.375 17.8633C2.12695 16.1484 1.40625 14.0547 1.40625 11.9961C1.40625 6.15234 6.15234 1.40625 11.9961 1.40625C17.8398 1.40625 22.5859 6.15234 22.5859 11.9961C22.5859 17.8398 17.8398 22.1836 11.9961 22.1836ZM18.1094 15.3672C17.7734 15.1953 16.1289 14.3828 15.8242 14.2734C15.5234 14.1641 15.3047 14.1094 15.0859 14.4375C14.8672 14.7656 14.2383 15.5039 14.043 15.7227C13.8477 15.9414 13.6523 15.9648 13.3164 15.793C12.9805 15.6211 11.8984 15.2695 10.6133 14.125C9.60547 13.2266 8.92578 12.1289 8.73047 11.793C8.53516 11.457 8.70703 11.2773 8.87891 11.1055C9.03125 10.9531 9.21484 10.7266 9.38672 10.5312C9.55859 10.3359 9.61328 10.1953 9.72266 9.97656C9.83203 9.75781 9.77734 9.5625 9.69141 9.39062C9.60547 9.21875 8.92578 7.54688 8.64453 6.85938C8.37109 6.19531 8.09375 6.28125 7.89844 6.27344C7.72656 6.26562 7.50781 6.26562 7.28906 6.26562C7.07031 6.26562 6.71484 6.34766 6.41016 6.67578C6.10547 7.00391 5.25391 7.79688 5.25391 9.41406C5.25391 11.0312 6.44141 12.5938 6.61328 12.8203C6.78516 13.0469 8.87891 16.4844 12.1953 17.7539C12.9805 18.0547 13.5977 18.2344 14.0742 18.3711C14.8672 18.5977 15.5898 18.5664 16.1484 18.4766C16.7812 18.3711 18.1094 17.6523 18.3828 16.8594C18.6562 16.0664 18.6562 15.4023 18.5703 15.2656C18.4727 15.1445 18.2578 15.0664 17.9258 14.8945L18.1094 15.3672Z" />
+                                                        </svg>
+                                                    </a>
+                                                )}
                                                 <button className="btn-icon-secondary" onClick={() => editPerson(p)} title="Modificar">
                                                     <Pencil size={16} />
                                                 </button>
