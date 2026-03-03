@@ -847,7 +847,7 @@ function App() {
                 workspace_id: userWorkspace.id,
                 config_key: key,
                 config_value: valArray
-            });
+            }, { onConflict: 'workspace_id, config_key' });
             if (error) throw error;
         } catch (err) {
             console.error(`Error saving ${key}:`, err);
@@ -875,6 +875,7 @@ function App() {
                 p.id === editingPersonId ? { ...p, name: newPersonName.trim(), phone: newPersonPhone.trim() } : p
             );
         } else {
+            isNewTeacher = true;
             const newToken = 'T-' + Math.random().toString(36).substr(2, 9);
             const newPerson = {
                 id: Date.now().toString(),
