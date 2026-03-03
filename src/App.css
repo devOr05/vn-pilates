@@ -150,10 +150,10 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     background: white;
     padding-bottom: calc(70px + env(safe-area-inset-bottom));
-    /* Space for bottom nav */
 }
 
 .main-header {
@@ -2079,6 +2079,7 @@ body {
     .main-content {
         border-radius: 0 24px 24px 0;
         padding-bottom: 0;
+        overflow: hidden;
     }
 
     .main-header {

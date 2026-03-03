@@ -868,11 +868,12 @@ function App() {
         }
 
         let updatedList;
+        let isNewTeacher = false;
+
         if (editingPersonId) {
             updatedList = personnelList.map(p =>
                 p.id === editingPersonId ? { ...p, name: newPersonName.trim(), phone: newPersonPhone.trim() } : p
             );
-            showToast("Profesor actualizado");
         } else {
             const newToken = 'T-' + Math.random().toString(36).substr(2, 9);
             const newPerson = {
@@ -883,21 +884,27 @@ function App() {
             };
             updatedList = [...personnelList, newPerson];
 
-            // Ask for WhatsApp welcome message
-            if (newPerson.phone && window.confirm(`¿Deseas enviar un WhatsApp a ${newPerson.name} con su enlace personal al portal docente?`)) {
-                const baseUrl = window.location.origin + window.location.pathname;
-                const fullLink = `${baseUrl}?teacherToken=${newToken}`;
-                const welcomeMsg = encodeURIComponent(`¡Hola ${newPerson.name}! Te han registrado como profesor/a en Gestión Flex. Ingresa a tu Portal Docente exclusivo desde este enlace para ver tus horarios y alumnos: ${fullLink}`);
-                window.open(`https://wa.me/${newPerson.phone.replace(/\D/g, '')}?text=${welcomeMsg}`, '_blank');
-            } else {
-                showToast("Personal agregado");
+            setPersonnelList(updatedList);
+            setNewPersonName('');
+            setNewPersonPhone('');
+            setEditingPersonId(null);
+
+            try {
+                await saveConfigArray('personnel_list', updatedList);
+                // Ask for WhatsApp welcome message ONLY AFTER saving successfully
+                if (isNewTeacher && updatedList[updatedList.length - 1].phone && window.confirm(`¿Deseas enviar un WhatsApp a ${updatedList[updatedList.length - 1].name} con su enlace personal al portal docente?`)) {
+                    const newPerson = updatedList[updatedList.length - 1];
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    const fullLink = `${baseUrl}?teacherToken=${newPerson.teacherToken}`;
+                    const welcomeMsg = encodeURIComponent(`¡Hola ${newPerson.name}! Te han registrado como profesor/a en Gestión Flex. Ingresa a tu Portal Docente exclusivo desde este enlace para ver tus horarios y alumnos: ${fullLink}`);
+                    window.open(`https://wa.me/${newPerson.phone.replace(/\D/g, '')}?text=${welcomeMsg}`, '_blank');
+                } else {
+                    showToast(isNewTeacher ? "Personal agregado" : "Profesor actualizado");
+                }
+            } catch (error) {
+                console.error(error);
             }
         }
-        setPersonnelList(updatedList);
-        setNewPersonName('');
-        setNewPersonPhone('');
-        setEditingPersonId(null);
-        await saveConfigArray('personnel_list', updatedList);
     };
 
     const editPerson = (p) => {
