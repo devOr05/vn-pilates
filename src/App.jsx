@@ -1803,6 +1803,55 @@ function App() {
         doc.save(`Planilla-Horarios-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
+    const exportSchedulesToPDF = () => {
+        const doc = new jsPDF('landscape');
+        doc.setFontSize(18);
+        doc.text("Planilla Semanal Global de Horarios", 14, 22);
+
+        const days = ['L', 'M', 'X', 'J', 'V', 'S'];
+        const dayNames = ['Hora', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+        const timesObj = {};
+        schedules.forEach(s => {
+            if (s.startTime) {
+                timesObj[s.startTime] = true;
+            }
+        });
+        const uniqueTimes = Object.keys(timesObj).sort((a, b) => a.localeCompare(b));
+
+        const rows = uniqueTimes.map(time => {
+            const row = [time];
+            days.forEach(day => {
+                const schedsForDayTime = schedules.filter(s => s.startTime === time && s.days && s.days.includes(day));
+                if (schedsForDayTime.length > 0) {
+                    const textLines = schedsForDayTime.map(s => {
+                        const count = students.filter(st => st.horario === s.name && st.status === 'activo').length;
+                        const teacherName = personnelList.find(p => p.id === s.teacherId)?.name?.split(' ')[0] || '';
+                        let cellText = `${s.discipline} (${count} insc.)`;
+                        if (teacherName) cellText += `\nProf: ${teacherName}`;
+                        return cellText;
+                    });
+                    row.push(textLines.join('\n\n'));
+                } else {
+                    row.push('');
+                }
+            });
+            return row;
+        });
+
+        doc.autoTable({
+            startY: 30,
+            head: [dayNames],
+            body: rows,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229] },
+            styles: { cellWidth: 'auto', minCellHeight: 20, valign: 'middle' },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 20 } }
+        });
+
+        doc.save(`Agenda-Semanal-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const exportStudentPDF = (student) => {
         const doc = new jsPDF();
         doc.setFontSize(18);
@@ -3939,11 +3988,11 @@ function App() {
                                                 <h5 style={{ textAlign: 'center', padding: '0.6rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', margin: 0 }}>
                                                     {day === 'L' ? 'Lunes' : day === 'M' ? 'Martes' : day === 'X' ? 'Miércoles' : day === 'J' ? 'Jueves' : day === 'V' ? 'Viernes' : 'Sábado'}
                                                 </h5>
-                                                {schedules.filter(s => s.days && s.days.includes(day)).sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
+                                                {schedules.filter(s => s.days && s.days.includes(day)).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')).map(s => (
                                                     <div key={s.id} style={{ background: 'white', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary-color)', fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                                        <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{s.startTime} - {s.endTime}</div>
-                                                        <div style={{ marginTop: '0.4rem', color: 'var(--text-color)', fontWeight: '500' }}>{s.discipline}</div>
-                                                        {s.teacherId && <div style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: 'var(--primary-color)', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>👨‍🏫 {personnelList.find(p => p.id === s.teacherId)?.name}</div>}
+                                                        <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{s.startTime || '--:--'} - {s.endTime || '--:--'}</div>
+                                                        <div style={{ marginTop: '0.4rem', color: 'var(--text-color)', fontWeight: '500' }}>{s.discipline || 'Sin disciplina'}</div>
+                                                        {s.teacherId && <div style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: 'var(--primary-color)', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>👨‍🏫 {personnelList.find(p => p.id === s.teacherId)?.name || 'Profesor Desconocido'}</div>}
                                                     </div>
                                                 ))}
                                             </div>
