@@ -65,6 +65,9 @@ function App() {
     const [isStudentMode, setIsStudentMode] = useState(false);
     const [isTeacherMode, setIsTeacherMode] = useState(false);
     const [teacherTokenData, setTeacherTokenData] = useState(null);
+    const [teacherWorkspaceId, setTeacherWorkspaceId] = useState(null);
+    const [teacherTab, setTeacherTab] = useState('horarios');
+    const [teacherProfileEdit, setTeacherProfileEdit] = useState({ phone: '', address: '', hourlyRate: '' });
     const [studentStep, setStudentStep] = useState(1); // 1: Datos, 2: Disciplina/Horario, 3: Dashboard
     const [studentData, setStudentData] = useState({
         name: '',
@@ -711,6 +714,12 @@ function App() {
                 }
                 if (foundTeacher) {
                     setTeacherTokenData(foundTeacher);
+                    setTeacherWorkspaceId(foundWorkspaceId);
+                    setTeacherProfileEdit({
+                        phone: foundTeacher.phone || '',
+                        address: foundTeacher.address || '',
+                        hourlyRate: foundTeacher.hourlyRate || ''
+                    });
                     const { data: configData } = await supabase
                         .from('workspace_configs')
                         .select('*')
@@ -892,12 +901,11 @@ function App() {
 
             try {
                 await saveConfigArray('personnel_list', updatedList);
-                // Ask for WhatsApp welcome message ONLY AFTER saving successfully
-                if (isNewTeacher && updatedList[updatedList.length - 1].phone && window.confirm(`¿Deseas enviar un WhatsApp a ${updatedList[updatedList.length - 1].name} con su enlace personal al portal docente?`)) {
+                if (isNewTeacher && updatedList[updatedList.length - 1].phone && window.confirm(`¿Deseas enviar un WhatsApp a ${updatedList[updatedList.length - 1].name} con su enlace personal al portal profesional?`)) {
                     const newPerson = updatedList[updatedList.length - 1];
                     const baseUrl = window.location.origin + window.location.pathname;
                     const fullLink = `${baseUrl}?teacherToken=${newPerson.teacherToken}`;
-                    const welcomeMsg = encodeURIComponent(`¡Hola ${newPerson.name}! Te han registrado como profesor/a en Gestión Flex. Ingresa a tu Portal Docente exclusivo desde este enlace para ver tus horarios y alumnos: ${fullLink}`);
+                    const welcomeMsg = encodeURIComponent(`¡Hola ${newPerson.name}! Te han registrado como profesor/a en Gestión Flex. Ingresa a tu Portal Profesional exclusivo desde este enlace para ver tus horarios y alumnos: ${fullLink}`);
                     window.open(`https://wa.me/${newPerson.phone.replace(/\D/g, '')}?text=${welcomeMsg}`, '_blank');
                 } else {
                     showToast(isNewTeacher ? "Personal agregado" : "Profesor actualizado");
@@ -2262,37 +2270,176 @@ function App() {
     }
 
     if (isTeacherMode) {
-        if (!isLoaded) return <div className="loading-screen">Cargando datos del profesor...</div>;
-        if (!teacherTokenData) return <div className="loading-screen" style={{ color: 'red' }}>Profesor no encontrado o token inválido.</div>;
+        if (!isLoaded) return <div className="loading-screen">Cargando datos del profesional...</div>;
+        if (!teacherTokenData) return <div className="loading-screen" style={{ color: 'red' }}>Profesional no encontrado o token inválido.<br /><small>Verifica que de este lado se han aplicado los permisos RLS indicados.</small></div>;
 
         const teacherSchedules = schedules.filter(s => s.teacherId === teacherTokenData.id);
 
+        const parseTime = (timeStr) => {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h + (m / 60);
+        };
+
+        let totalWeeklyHours = 0;
+        teacherSchedules.forEach(s => {
+            if (s.startTime && s.endTime && s.days) {
+                const duration = parseTime(s.endTime) - parseTime(s.startTime);
+                if (duration > 0) {
+                    totalWeeklyHours += duration * s.days.length;
+                }
+            }
+        });
+        const estimatedMonthlyHours = totalWeeklyHours * 4;
+        const hourlyRate = parseFloat(teacherTokenData.hourlyRate) || 0;
+        const estimatedMonthlySalary = estimatedMonthlyHours * hourlyRate;
+
+        const handleSaveTeacherProfile = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('workspace_configs')
+                    .select('config_value')
+                    .eq('workspace_id', teacherWorkspaceId)
+                    .eq('config_key', 'personnel_list')
+                    .single();
+
+                if (error || !data) throw new Error("No se pudo leer la configuración actual");
+
+                const currentList = Array.isArray(data.config_value) ? data.config_value : [];
+                const updatedList = currentList.map(p =>
+                    p.id === teacherTokenData.id ? { ...p, ...teacherProfileEdit } : p
+                );
+
+                const { error: updateError } = await supabase
+                    .from('workspace_configs')
+                    .update({ config_value: updatedList })
+                    .eq('workspace_id', teacherWorkspaceId)
+                    .eq('config_key', 'personnel_list');
+
+                if (updateError) throw updateError;
+
+                setTeacherTokenData(prev => ({ ...prev, ...teacherProfileEdit }));
+                showToast("Perfil actualizado correctamente");
+            } catch (err) {
+                console.error(err);
+                showToast("Error al guardar perfil", "error");
+            }
+        };
+
         return (
             <div className="student-app-container">
-                <header className="student-header" style={{ background: 'var(--primary-color)' }}>
-                    <h1>Portal Docente</h1>
+                <header className="student-header" style={{ background: 'var(--primary-color)', paddingBottom: '0.5rem' }}>
+                    <h1>Portal Profesional</h1>
                     <span className="welcome-msg">Hola, {teacherTokenData.name.split(' ')[0]}</span>
                 </header>
+
+                <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid var(--border)' }}>
+                    <button
+                        style={{ flex: 1, padding: '1rem', background: 'none', border: 'none', borderBottom: teacherTab === 'horarios' ? '3px solid var(--primary-color)' : '3px solid transparent', fontWeight: teacherTab === 'horarios' ? '600' : '400', color: teacherTab === 'horarios' ? 'var(--primary-color)' : 'var(--text-color)', cursor: 'pointer', outline: 'none', transition: 'all 0.2s' }}
+                        onClick={() => setTeacherTab('horarios')}
+                    >
+                        Mis Horarios
+                    </button>
+                    <button
+                        style={{ flex: 1, padding: '1rem', background: 'none', border: 'none', borderBottom: teacherTab === 'perfil' ? '3px solid var(--primary-color)' : '3px solid transparent', fontWeight: teacherTab === 'perfil' ? '600' : '400', color: teacherTab === 'perfil' ? 'var(--primary-color)' : 'var(--text-color)', cursor: 'pointer', outline: 'none', transition: 'all 0.2s' }}
+                        onClick={() => setTeacherTab('perfil')}
+                    >
+                        Mi Perfil
+                    </button>
+                </div>
+
                 <main className="student-main">
-                    <div className="report-card animate-fade-in">
-                        <h3>Tus Horarios Asignados</h3>
-                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {teacherSchedules.length > 0 ? teacherSchedules.map(s => {
-                                const count = students.filter(st => st.horario === s.name && st.status === 'activo').length;
-                                return (
-                                    <div key={s.id} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary-color)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <strong>{s.name}</strong>
-                                            <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '0.2rem 0.5rem', borderRadius: '12px', color: 'var(--text-color)' }}>{count} inscriptos</span>
-                                        </div>
-                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                                            Disciplina: {s.discipline}
-                                        </div>
+                    {teacherTab === 'horarios' && (
+                        <div className="animate-fade-in">
+                            <div className="student-status-grid" style={{ marginBottom: '1.5rem' }}>
+                                <div className="status-card">
+                                    <div className="status-icon"><Clock size={24} /></div>
+                                    <div className="status-info">
+                                        <span className="label">Horas / Mes</span>
+                                        <span className="value">{estimatedMonthlyHours.toFixed(1)} hs</span>
                                     </div>
-                                )
-                            }) : <p className="no-data">No tienes horarios asignados aún.</p>}
+                                </div>
+                                <div className="status-card" style={{ borderLeft: '4px solid #10b981' }}>
+                                    <div className="status-icon paid" style={{ color: '#10b981', background: '#d1fae5' }}><DollarSign size={24} /></div>
+                                    <div className="status-info">
+                                        <span className="label">Ingreso Est.</span>
+                                        <span className="value">${estimatedMonthlySalary.toLocaleString('es-AR')}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="report-card">
+                                <h3>Tus Horarios Asignados</h3>
+                                <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {teacherSchedules.length > 0 ? teacherSchedules.map(s => {
+                                        const count = students.filter(st => st.horario === s.name && st.status === 'activo').length;
+                                        return (
+                                            <div key={s.id} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: '4px solid var(--primary-color)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <strong>{s.name}</strong>
+                                                    <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '0.2rem 0.6rem', borderRadius: '12px', color: 'var(--text-color)', fontWeight: '600' }}>{count} inscriptos</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>Días: {s.days?.join(', ')}</span>
+                                                    <span>{s.startTime} a {s.endTime}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    }) : <p className="no-data">No tienes horarios asignados aún.</p>}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {teacherTab === 'perfil' && (
+                        <div className="registration-card animate-fade-in">
+                            <h2>Datos Personales</h2>
+                            <p className="step-desc">Completa tu perfil para uso administrativo interno.</p>
+
+                            <div className="student-form">
+                                <div className="form-group">
+                                    <label>Nombre</label>
+                                    <input type="text" value={teacherTokenData.name} disabled style={{ opacity: 0.7, background: '#f1f5f9' }} />
+                                    <small className="help-text-xs">Contacta a administración para cambiar tu nombre registrado.</small>
+                                </div>
+                                <div className="form-group">
+                                    <label>Teléfono</label>
+                                    <input
+                                        type="tel"
+                                        value={teacherProfileEdit.phone}
+                                        onChange={e => setTeacherProfileEdit({ ...teacherProfileEdit, phone: e.target.value.replace(/\D/g, '') })}
+                                        placeholder="Ej: 1122334455"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Dirección Postal (Opcional)</label>
+                                    <input
+                                        type="text"
+                                        value={teacherProfileEdit.address}
+                                        onChange={e => setTeacherProfileEdit({ ...teacherProfileEdit, address: e.target.value })}
+                                        placeholder="Ej: Calle 123, Ciudad"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Acuerdo / Sueldo por Hora</label>
+                                    <div className="with-prefix">
+                                        <span>$</span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={teacherProfileEdit.hourlyRate}
+                                            onChange={e => setTeacherProfileEdit({ ...teacherProfileEdit, hourlyRate: e.target.value.replace(/\D/g, '') })}
+                                            placeholder="Ej: 5000"
+                                        />
+                                    </div>
+                                    <small className="help-text-xs">Requerido para generar la estimación de tus ingresos mensuales.</small>
+                                </div>
+
+                                <button className="btn-confirm-full" onClick={handleSaveTeacherProfile} style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Save size={18} /> Guardar Perfil
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
         )
