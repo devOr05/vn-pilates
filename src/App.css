@@ -2516,7 +2516,7 @@ body {
 
 .weekly-grid-container {
     display: grid;
-    grid-template-columns: repeat(6, minmax(120px, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0.5rem;
     width: 100%;
     overflow-x: auto;
