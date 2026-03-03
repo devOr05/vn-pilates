@@ -1526,13 +1526,17 @@ body {
     width: 100%;
 }
 
-.admin-invite-form input {
+.admin-invite-form input,
+.admin-invite-form select {
     flex: 1;
     padding: 0.75rem 1rem;
     border: 1px solid var(--border);
     border-radius: 12px;
     font-size: 0.95rem;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
 }
 
 .admins-list {
@@ -2499,12 +2503,13 @@ body {
     flex-direction: column;
     gap: 0.8rem;
     width: 100%;
+    min-width: 0;
 }
 
 @media (min-width: 768px) {
     .settings-two-col {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 }
 
@@ -2516,7 +2521,8 @@ body {
     scroll-snap-type: x mandatory;
     scrollbar-width: thin;
     width: 100%;
-    justify-content: flex-start;
+    justify-content: center;
+    max-width: 100%;
 }
 
 @media (min-width: 768px) {
