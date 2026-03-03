@@ -3540,7 +3540,7 @@ function App() {
                                 <h3>Configuración Operativa</h3>
                                 <p className="report-subtitle">Personaliza las opciones y sincroniza tus datos.</p>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '2rem', marginTop: '1.5rem' }}>
+                                <div className="config-operativa-wrapper">
 
                                     {/* Disciplines Section */}
                                     <div>
@@ -3714,7 +3714,7 @@ function App() {
                                     </div>
 
                                     {/* Import Section */}
-                                    <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '2rem' }}>
+                                    <div className="import-section-col">
                                         <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Importación de Datos</h4>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Sincroniza tus datos locales con la planilla central.</p>
 
@@ -3776,8 +3776,8 @@ function App() {
 
                                 {/* Weekly Grid */}
                                 <div style={{ marginTop: '3rem' }}>
-                                    <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)', fontSize: '1.1rem' }}>📅 Agenda Semanal Global</h4>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Vista general de todos los horarios programados.</p>
+                                    <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)', fontSize: '1.1rem', textAlign: 'center' }}>📅 Agenda Semanal Global</h4>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', textAlign: 'center' }}>Vista general de todos los horarios programados.</p>
                                     <div className="weekly-grid-container">
                                         {['L', 'M', 'X', 'J', 'V', 'S'].map(day => (
                                             <div key={day} className="weekly-grid-column">
