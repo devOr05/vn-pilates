@@ -3564,14 +3564,15 @@ function App() {
                                 <p className="report-subtitle">Personaliza cómo te ves y cómo se llama tu negocio.</p>
                                 <div className="form-group">
                                     <label>Nombre del Espacio (Estudio/Gimnasio)</label>
-                                    <div className="input-with-button">
+                                    <div className="input-with-button" style={{ display: 'flex', gap: '0.5rem' }}>
                                         <input
                                             type="text"
                                             value={editWorkspaceName}
                                             onChange={e => setEditWorkspaceName(e.target.value)}
                                             placeholder="Ej: VN Pilates"
+                                            style={{ flex: 1 }}
                                         />
-                                        <button className="btn-save-mini" onClick={saveWorkspaceBranding}>
+                                        <button className="btn-secondary" onClick={saveWorkspaceBranding} style={{ whiteSpace: 'nowrap' }}>
                                             <Save size={16} /> Guardar
                                         </button>
                                     </div>
@@ -3602,14 +3603,15 @@ function App() {
                                 </div>
                                 <div className="form-group" style={{ marginTop: '1rem' }}>
                                     <label>Tu Nombre (Administrador)</label>
-                                    <div className="input-with-button">
+                                    <div className="input-with-button" style={{ display: 'flex', gap: '0.5rem' }}>
                                         <input
                                             type="text"
                                             value={editAdminName}
                                             onChange={e => setEditAdminName(e.target.value)}
                                             placeholder="Tu nombre completo"
+                                            style={{ flex: 1 }}
                                         />
-                                        <button className="btn-save-mini" onClick={saveAdminName}>
+                                        <button className="btn-secondary" onClick={saveAdminName} style={{ whiteSpace: 'nowrap' }}>
                                             <Save size={16} /> Guardar
                                         </button>
                                     </div>
@@ -3917,71 +3919,20 @@ function App() {
                                         </div>
                                     </div>
 
-                                    {/* Import Section */}
-                                    <div className="import-section-col">
-                                        <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)' }}>Importación de Datos</h4>
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Sincroniza tus datos locales con la planilla central.</p>
-
-                                        <div className="form-group" style={{ marginBottom: '1rem' }}>
-                                            <label style={{ fontSize: '0.85rem' }}>Disciplina asignada</label>
-                                            <select
-                                                className="input-field"
-                                                value={importDiscipline}
-                                                onChange={e => setImportDiscipline(e.target.value)}
-                                                style={{ marginTop: '0.2rem' }}
-                                            >
-                                                <option value="">Sin asignar</option>
-                                                {disciplines.map(d => (
-                                                    <option key={d.id} value={d.name}>{d.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                                            <label style={{ fontSize: '0.85rem' }}>Horario adjudicado</label>
-                                            <select
-                                                className="input-field"
-                                                value={importSchedule}
-                                                onChange={e => setImportSchedule(e.target.value)}
-                                                style={{ marginTop: '0.2rem' }}
-                                            >
-                                                <option value="">Sin asignar</option>
-                                                {schedules.map(s => (
-                                                    <option key={s.id} value={s.name}>{s.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <input
-                                            type="file"
-                                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                                            onChange={handleFileUpload}
-                                            style={{ display: 'none' }}
-                                            ref={fileInputRef}
-                                        />
-                                        <button
-                                            className="btn-secondary"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            style={{ width: '100%', justifyContent: 'center' }}
-                                        >
-                                            <FileCheck size={18} /> Importar CSV Local
-                                        </button>
-                                        {/* Link Import was here, removed per user previous instruction or kept?
-                                         I will keep the Link Import button just in case, below CSV */}
-                                        <button
-                                            className="btn-secondary"
-                                            style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
-                                            onClick={() => setShowLinkModal(true)}
-                                        >
-                                            <Save size={18} /> Ver Planilla
-                                        </button>
-                                    </div>
+                                    {/* Import Section removed by user request */}
                                 </div>
 
                                 {/* Weekly Grid */}
                                 <div style={{ marginTop: '3rem' }}>
-                                    <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)', fontSize: '1.1rem', textAlign: 'center' }}>📅 Agenda Semanal Global</h4>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem', textAlign: 'center' }}>Vista general de todos los horarios programados.</p>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                                        <div style={{ flex: 1, minWidth: '200px' }}>
+                                            <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-color)', fontSize: '1.1rem' }}>📅 Agenda Semanal Global</h4>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Vista general de todos los horarios programados.</p>
+                                        </div>
+                                        <button className="btn-secondary" onClick={exportSchedulesToPDF} style={{ whiteSpace: 'nowrap' }}>
+                                            <FileText size={16} /> Exportar PDF
+                                        </button>
+                                    </div>
                                     <div className="weekly-grid-container">
                                         {['L', 'M', 'X', 'J', 'V', 'S'].map(day => (
                                             <div key={day} className="weekly-grid-column">
