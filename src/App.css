@@ -864,9 +864,20 @@ body {
 
 /* Ajustes / Zona Peligrosa */
 .settings-container {
-    padding: 2rem;
+    padding: 1rem;
     max-width: 800px;
+    width: 100%;
+    margin: 0 auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
 }
+
+@media (min-width: 768px) {
+    .settings-container {
+        padding: 2rem;
+    }
+}
+
 
 .danger-zone {
     margin-top: 3rem;
@@ -913,11 +924,19 @@ body {
 .report-card {
     background: white;
     border: 1px solid var(--border);
-    padding: 1.25rem;
+    padding: 1rem;
     border-radius: 20px;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .report-card {
+        padding: 1.5rem;
+    }
 }
 
 .report.n-footer {
@@ -2496,6 +2515,14 @@ body {
     padding-bottom: 1rem;
     scroll-snap-type: x mandatory;
     scrollbar-width: thin;
+    width: 100%;
+    justify-content: flex-start;
+}
+
+@media (min-width: 768px) {
+    .weekly-grid-container {
+        justify-content: center;
+    }
 }
 
 .weekly-grid-column {
@@ -2511,6 +2538,13 @@ body {
     grid-template-columns: 1fr;
     gap: 2rem;
     margin-top: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.config-operativa-wrapper>* {
+    min-width: 0;
 }
 
 .import-section-col {
