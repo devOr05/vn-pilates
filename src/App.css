@@ -2514,29 +2514,19 @@ body {
 }
 
 .weekly-grid-container {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 1rem;
-    overflow-x: auto;
-    padding-bottom: 1rem;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: thin;
     width: 100%;
-    justify-content: center;
     max-width: 100%;
-}
-
-@media (min-width: 768px) {
-    .weekly-grid-container {
-        justify-content: center;
-    }
+    padding-bottom: 1rem;
 }
 
 .weekly-grid-column {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    min-width: 200px;
-    scroll-snap-align: start;
+    width: 100%;
 }
 
 .config-operativa-wrapper {
