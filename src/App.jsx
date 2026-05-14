@@ -98,6 +98,7 @@ function App() {
     const [clientType, setClientType] = useState('alumnos'); // alumnos | pacientes
     const [showResend, setShowResend] = useState(false);
     const [currentStudent, setCurrentStudent] = useState(null);
+    const [isGuestMode, setIsGuestMode] = useState(false); // Guest/Demo mode without password
 
     // Helpers for dynamic terminology
     const getLabel = (singular = false) => {
@@ -143,8 +144,32 @@ function App() {
     }, []);
 
     const fetchAppData = async (user) => {
-        console.log("fetchAppData: Starting for user:", user.email);
+        console.log("fetchAppData: Starting...", user ? user.email : "Guest Mode");
         try {
+            if (!user) {
+                // Modo Invitado: Load from LocalStorage
+                const localStudents = JSON.parse(localStorage.getItem('gf_students') || '[]');
+                const localSchedules = JSON.parse(localStorage.getItem('gf_schedules') || '[]');
+                const localPersonnel = JSON.parse(localStorage.getItem('gf_personnel') || '[]');
+                const localDisciplines = JSON.parse(localStorage.getItem('gf_disciplines') || '[]');
+                const localExpenses = JSON.parse(localStorage.getItem('gf_expenses') || '[]');
+                const localSalary = JSON.parse(localStorage.getItem('gf_salary') || '[]');
+                const localNotifications = JSON.parse(localStorage.getItem('gf_notifications') || '[]');
+
+                setStudents(localStudents);
+                setSchedules(localSchedules);
+                setPersonnelList(localPersonnel);
+                setDisciplines(localDisciplines);
+                setExpensesData(localExpenses);
+                setSalaryData(localSalary);
+                setNotifications(localNotifications);
+                
+                setUserWorkspace({ name: 'Espacio de Prueba', client_type: 'alumnos' });
+                setClientType('alumnos');
+                setIsLoaded(true);
+                setIsInitialLoad(false);
+                return;
+            }
             // 1. Get or Create Workspace
             let workspaceMembers, memberError;
             const result = await supabase
@@ -416,7 +441,14 @@ function App() {
         }
     };
 
+    const handleGuestEnter = () => {
+        setIsGuestMode(true);
+        fetchAppData(null);
+        showToast("Entrando en Modo Prueba (Sin Cuenta)", "success");
+    };
+
     const handleLogout = async () => {
+        setIsGuestMode(false);
         await supabase.auth.signOut();
         showToast("Sesión cerrada");
     };
@@ -505,6 +537,14 @@ function App() {
             showToast("Por favor, completa la descripción y el monto", "error");
             return;
         }
+        if (isGuestMode) {
+            const updated = [...expensesData, { id: Date.now().toString(), description: newExpense.description, amount: newExpense.amount }];
+            setExpensesData(updated);
+            localStorage.setItem('gf_expenses', JSON.stringify(updated));
+            setNewExpense({ description: '', amount: '' });
+            showToast("Gasto agregado (Modo Prueba)");
+            return;
+        }
         try {
             const { error } = await supabase
                 .from('expenses')
@@ -526,6 +566,13 @@ function App() {
     };
 
     const deleteExpense = async (id) => {
+        if (isGuestMode) {
+            const updated = expensesData.filter(e => e.id !== id);
+            setExpensesData(updated);
+            localStorage.setItem('gf_expenses', JSON.stringify(updated));
+            showToast("Gasto eliminado (Modo Prueba)", "error");
+            return;
+        }
         try {
             const { error } = await supabase
                 .from('expenses')
@@ -590,6 +637,18 @@ function App() {
             showToast("Por favor, completa título y mensaje", "error");
             return;
         }
+        if (isGuestMode) {
+            const updated = [{
+                id: Date.now().toString(),
+                ...newNotification,
+                date: new Date().toISOString()
+            }, ...notifications];
+            setNotifications(updated);
+            localStorage.setItem('gf_notifications', JSON.stringify(updated));
+            setNewNotification({ title: '', message: '', type: 'General', target: 'Todos' });
+            showToast("Notificación enviada (Modo Prueba)");
+            return;
+        }
         try {
             const { error } = await supabase
                 .from('notifications')
@@ -613,6 +672,13 @@ function App() {
     };
 
     const deleteNotification = async (id) => {
+        if (isGuestMode) {
+            const updated = notifications.filter(n => n.id !== id);
+            setNotifications(updated);
+            localStorage.setItem('gf_notifications', JSON.stringify(updated));
+            showToast("Notificación eliminada (Modo Prueba)", "error");
+            return;
+        }
         try {
             const { error } = await supabase
                 .from('notifications')
@@ -850,6 +916,10 @@ function App() {
     }, [students, notifications]);
 
     const saveConfigArray = async (key, valArray) => {
+        if (isGuestMode) {
+            localStorage.setItem(`gf_${key}`, JSON.stringify(valArray));
+            return;
+        }
         if (!userWorkspace) return;
         try {
             const { error } = await supabase.from('workspace_configs').upsert({
@@ -1176,6 +1246,44 @@ function App() {
             return;
         }
 
+        if (isGuestMode) {
+            // Modo Invitado: Save to LocalStorage
+            const token = btoa(`${newStudent.name.trim()}-${Date.now()}`).replace(/=/g, '');
+            const studentToInsert = {
+                id: Date.now().toString(),
+                name: newStudent.name.trim(),
+                classesPerWeek: parseInt(newStudent.classesPerWeek),
+                entryDate: newStudent.entryDate,
+                phone: newStudent.phone || null,
+                dni: newStudent.dni || null,
+                birthDate: newStudent.birthDate || null,
+                status: 'activo',
+                registrationToken: token,
+                disciplina: newStudent.disciplina,
+                horario: newStudent.horario,
+                history: []
+            };
+
+            // Handle initial payment if present
+            if (newStudent.initialAmount) {
+                studentToInsert.history.push({
+                    month: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
+                    amount: newStudent.initialAmount,
+                    receivedBy: newStudent.initialReceiver,
+                    date: new Date().toLocaleDateString()
+                });
+            }
+
+            const updatedStudents = [...students, studentToInsert];
+            setStudents(updatedStudents);
+            localStorage.setItem('gf_students', JSON.stringify(updatedStudents));
+            
+            setNewStudent({ name: '', classesPerWeek: '2', entryDate: new Date().toISOString().split('T')[0], phone: '', initialAmount: '', initialReceiver: '' });
+            setShowAddModal(false);
+            showToast("Alumno agregado (Modo Prueba)");
+            return;
+        }
+
         try {
             const token = btoa(`${newStudent.name.trim()}-${Date.now()}`).replace(/=/g, '');
             const studentToInsert = {
@@ -1328,6 +1436,16 @@ function App() {
     const deleteStudent = async (studentId, event) => {
         event.stopPropagation();
         if (window.confirm("¿Seguro que deseas eliminar este alumno? Se borrará todo su historial.")) {
+            if (isGuestMode) {
+                const updated = students.filter(s => s.id !== studentId);
+                setStudents(updated);
+                localStorage.setItem('gf_students', JSON.stringify(updated));
+                showToast("Alumno eliminado (Modo Prueba)", "error");
+                if (selectedStudent && selectedStudent.id === studentId) {
+                    setSelectedStudent(null);
+                }
+                return;
+            }
             try {
                 const { error } = await supabase
                     .from('students')
@@ -1382,6 +1500,31 @@ function App() {
         }
         if (isNaN(parseFloat(amount))) {
             showToast("El monto debe ser un número válido", "error");
+            return;
+        }
+
+        if (isGuestMode) {
+            const updated = students.map(s => {
+                if (s.id === paymentStudentId) {
+                    return {
+                        ...s,
+                        history: [
+                            {
+                                month,
+                                amount: amount.toString(),
+                                receivedBy,
+                                date: new Date().toLocaleDateString()
+                            },
+                            ...s.history
+                        ]
+                    };
+                }
+                return s;
+            });
+            setStudents(updated);
+            localStorage.setItem('gf_students', JSON.stringify(updated));
+            setShowPaymentModal(false);
+            showToast("Pago registrado (Modo Prueba)");
             return;
         }
 
@@ -1454,6 +1597,11 @@ function App() {
     };
 
     const saveSalaries = async () => {
+        if (isGuestMode) {
+            localStorage.setItem('gf_salary', JSON.stringify(salaryData));
+            showToast("Sueldos guardados (Modo Prueba)");
+            return;
+        }
         if (!userWorkspace) return;
         try {
             const { error } = await supabase
@@ -1474,6 +1622,13 @@ function App() {
 
     const saveStudentChanges = async () => {
         if (!selectedStudent) return;
+        if (isGuestMode) {
+            const updated = students.map(s => s.id === selectedStudent.id ? { ...selectedStudent } : s);
+            setStudents(updated);
+            localStorage.setItem('gf_students', JSON.stringify(updated));
+            showToast("Cambios guardados (Modo Prueba)");
+            return;
+        }
         try {
             const { error } = await supabase
                 .from('students')
@@ -2200,7 +2355,7 @@ function App() {
         );
     }
 
-    if (!session && !isStudentMode && !isTeacherMode) {
+    if (!session && !isGuestMode && !isStudentMode && !isTeacherMode) {
         return (
             <div className="auth-container">
                 <div className="auth-card animate-fade-in" style={{ padding: '0', overflow: 'hidden' }}>
@@ -2298,6 +2453,29 @@ function App() {
 
                             <button className="btn-confirm-full" type="submit" disabled={authLoading} style={{ marginTop: '0.5rem' }}>
                                 {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
+                            </button>
+
+                            <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>O TAMBIÉN</span>
+                                <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
+                            </div>
+
+                            <button 
+                                type="button" 
+                                className="btn-secondary-full" 
+                                onClick={handleGuestEnter}
+                                style={{ 
+                                    background: 'var(--primary-color)', 
+                                    color: 'white', 
+                                    border: 'none',
+                                    padding: '1rem',
+                                    fontSize: '1rem',
+                                    fontWeight: '700',
+                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                                }}
+                            >
+                                🚀 ENTRAR DIRECTO (MODO PRUEBA)
                             </button>
 
                             {showResend && authMode === 'login' && (
