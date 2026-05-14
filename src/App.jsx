@@ -150,10 +150,20 @@ function App() {
                 // Modo Invitado: Load from LocalStorage
                 let localStudents = JSON.parse(localStorage.getItem('gf_students'));
                 if (!localStudents || localStudents.length === 0) {
-                    localStudents = [
-                        { id: 's1', name: 'Juan Pérez (Ejemplo)', entryDate: '2024-01-10', classesPerWeek: 2, phone: '1122334455', status: 'activo', history: [{ month: 'Mayo 2024', amount: '25000', receivedBy: 'Admin', date: '01/05/2024' }] },
-                        { id: 's2', name: 'María García (Ejemplo)', entryDate: '2024-02-15', classesPerWeek: 3, phone: '1199887766', status: 'activo', history: [] }
-                    ];
+                    const firstNames = ['Juan', 'María', 'Pedro', 'Ana', 'Luis', 'Elena', 'Carlos', 'Sofía', 'Jorge', 'Lucía', 'Miguel', 'Carmen', 'Javier', 'Paula', 'Andrés', 'Marta', 'Diego', 'Laura', 'Ricardo', 'Sara'];
+                    const lastNames = ['Pérez', 'García', 'Rodríguez', 'López', 'González', 'Martínez', 'Sánchez', 'Romero', 'Fernández', 'Torres', 'Ruiz', 'Díaz', 'Vázquez', 'Castro', 'Morales', 'Suárez', 'Ortega', 'Delgado', 'Ramírez', 'Guerrero'];
+                    
+                    localStudents = Array.from({ length: 50 }, (_, i) => ({
+                        id: `s-sample-${i}`,
+                        name: `${firstNames[i % firstNames.length]} ${lastNames[(i * 3) % lastNames.length]}`,
+                        entryDate: new Date(2024, 0, 1 + i).toISOString().split('T')[0],
+                        classesPerWeek: (i % 3) + 1,
+                        phone: `11${Math.floor(10000000 + Math.random() * 90000000)}`,
+                        status: i % 10 === 0 ? 'pendiente' : 'activo',
+                        disciplina: i % 2 === 0 ? 'Pilates Reformer' : 'Yoga',
+                        horario: i % 2 === 0 ? 'Lunes 10:00' : 'Martes 18:00',
+                        history: i % 2 === 0 ? [{ month: 'Mayo 2024', amount: '25000', receivedBy: 'Admin', date: '01/05/2024' }] : []
+                    }));
                     localStorage.setItem('gf_students', JSON.stringify(localStudents));
                 }
 
@@ -2964,11 +2974,6 @@ function App() {
     );
     return (
         <div className="app-container">
-            {isGuestMode && (
-                <div className="demo-banner">
-                    <AlertCircle size={16} /> <strong>MODO PRUEBA ACTIVO:</strong> Los datos se guardan solo en este navegador.
-                </div>
-            )}
             <aside className="sidebar">
                 <div className="logo-section">
                     <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
