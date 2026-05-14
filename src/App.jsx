@@ -148,18 +148,42 @@ function App() {
         try {
             if (!user) {
                 // Modo Invitado: Load from LocalStorage
-                const localStudents = JSON.parse(localStorage.getItem('gf_students') || '[]');
+                let localStudents = JSON.parse(localStorage.getItem('gf_students'));
+                if (!localStudents || localStudents.length === 0) {
+                    localStudents = [
+                        { id: 's1', name: 'Juan Pérez (Ejemplo)', entryDate: '2024-01-10', classesPerWeek: 2, phone: '1122334455', status: 'activo', history: [{ month: 'Mayo 2024', amount: '25000', receivedBy: 'Admin', date: '01/05/2024' }] },
+                        { id: 's2', name: 'María García (Ejemplo)', entryDate: '2024-02-15', classesPerWeek: 3, phone: '1199887766', status: 'activo', history: [] }
+                    ];
+                    localStorage.setItem('gf_students', JSON.stringify(localStudents));
+                }
+
+                let localPersonnel = JSON.parse(localStorage.getItem('gf_personnel'));
+                if (!localPersonnel || localPersonnel.length === 0) {
+                    localPersonnel = [
+                        { id: 'p1', name: 'Profe Lucas', phone: '11223344', teacherToken: 'T-sample1' },
+                        { id: 'p2', name: 'Profe Romina', phone: '11556677', teacherToken: 'T-sample2' }
+                    ];
+                    localStorage.setItem('gf_personnel', JSON.stringify(localPersonnel));
+                }
+
+                let localDisciplines = JSON.parse(localStorage.getItem('gf_disciplines'));
+                if (!localDisciplines || localDisciplines.length === 0) {
+                    localDisciplines = [
+                        { id: 'd1', name: 'Pilates Reformer', maxCapacity: 5 },
+                        { id: 'd2', name: 'Yoga', maxCapacity: 10 }
+                    ];
+                    localStorage.setItem('gf_disciplines', JSON.stringify(localDisciplines));
+                }
+
                 const localSchedules = JSON.parse(localStorage.getItem('gf_schedules') || '[]');
-                const localPersonnel = JSON.parse(localStorage.getItem('gf_personnel') || '[]');
-                const localDisciplines = JSON.parse(localStorage.getItem('gf_disciplines') || '[]');
                 const localExpenses = JSON.parse(localStorage.getItem('gf_expenses') || '[]');
                 const localSalary = JSON.parse(localStorage.getItem('gf_salary') || '[]');
                 const localNotifications = JSON.parse(localStorage.getItem('gf_notifications') || '[]');
 
                 setStudents(localStudents);
-                setSchedules(localSchedules);
                 setPersonnelList(localPersonnel);
                 setDisciplines(localDisciplines);
+                setSchedules(localSchedules);
                 setExpensesData(localExpenses);
                 setSalaryData(localSalary);
                 setNotifications(localNotifications);
@@ -2463,17 +2487,8 @@ function App() {
 
                             <button 
                                 type="button" 
-                                className="btn-secondary-full" 
+                                className="btn-guest-access" 
                                 onClick={handleGuestEnter}
-                                style={{ 
-                                    background: 'var(--primary-color)', 
-                                    color: 'white', 
-                                    border: 'none',
-                                    padding: '1rem',
-                                    fontSize: '1rem',
-                                    fontWeight: '700',
-                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                                }}
                             >
                                 🚀 ENTRAR DIRECTO (MODO PRUEBA)
                             </button>
@@ -2949,6 +2964,11 @@ function App() {
     );
     return (
         <div className="app-container">
+            {isGuestMode && (
+                <div className="demo-banner">
+                    <AlertCircle size={16} /> <strong>MODO PRUEBA ACTIVO:</strong> Los datos se guardan solo en este navegador.
+                </div>
+            )}
             <aside className="sidebar">
                 <div className="logo-section">
                     <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
