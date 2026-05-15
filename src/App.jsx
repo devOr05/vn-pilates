@@ -35,6 +35,7 @@ import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import Tesseract from 'tesseract.js';
+import logo from './assets/logo.png';
 
 function App() {
     const [students, setStudents] = useState([]);
@@ -149,20 +150,25 @@ function App() {
             if (!user) {
                 // Modo Invitado: Load from LocalStorage
                 let localStudents = JSON.parse(localStorage.getItem('gf_students'));
-                if (!localStudents || localStudents.length === 0) {
-                    const firstNames = ['Juan', 'María', 'Pedro', 'Ana', 'Luis', 'Elena', 'Carlos', 'Sofía', 'Jorge', 'Lucía', 'Miguel', 'Carmen', 'Javier', 'Paula', 'Andrés', 'Marta', 'Diego', 'Laura', 'Ricardo', 'Sara'];
-                    const lastNames = ['Pérez', 'García', 'Rodríguez', 'López', 'González', 'Martínez', 'Sánchez', 'Romero', 'Fernández', 'Torres', 'Ruiz', 'Díaz', 'Vázquez', 'Castro', 'Morales', 'Suárez', 'Ortega', 'Delgado', 'Ramírez', 'Guerrero'];
+                if (!localStudents || localStudents.length < 10) { // Si hay pocos o ninguno, forzamos los 50
+                    const firstNames = ['Juan', 'María', 'Pedro', 'Ana', 'Luis', 'Elena', 'Carlos', 'Sofía', 'Jorge', 'Lucía', 'Miguel', 'Carmen', 'Javier', 'Paula', 'Andrés', 'Marta', 'Diego', 'Laura', 'Ricardo', 'Sara', 'Roberto', 'Daniela', 'Fernando', 'Alicia', 'Gabriel', 'Valeria', 'Hugo', 'Camila', 'Mateo', 'Isabella'];
+                    const lastNames = ['Pérez', 'García', 'Rodríguez', 'López', 'González', 'Martínez', 'Sánchez', 'Romero', 'Fernández', 'Torres', 'Ruiz', 'Díaz', 'Vázquez', 'Castro', 'Morales', 'Suárez', 'Ortega', 'Delgado', 'Ramírez', 'Guerrero', 'Mendoza', 'Castillo', 'Jiménez', 'Moreno', 'Rojas', 'Álvarez', 'Soto', 'Silva', 'Figueroa', 'Vargas'];
                     
                     localStudents = Array.from({ length: 50 }, (_, i) => ({
                         id: `s-sample-${i}`,
-                        name: `${firstNames[i % firstNames.length]} ${lastNames[(i * 3) % lastNames.length]}`,
+                        name: `${firstNames[i % firstNames.length]} ${lastNames[(i * 7) % lastNames.length]}`,
                         entryDate: new Date(2024, 0, 1 + i).toISOString().split('T')[0],
                         classesPerWeek: (i % 3) + 1,
                         phone: `11${Math.floor(10000000 + Math.random() * 90000000)}`,
-                        status: i % 10 === 0 ? 'pendiente' : 'activo',
+                        status: i % 15 === 0 ? 'pendiente' : 'activo',
                         disciplina: i % 2 === 0 ? 'Pilates Reformer' : 'Yoga',
-                        horario: i % 2 === 0 ? 'Lunes 10:00' : 'Martes 18:00',
-                        history: i % 2 === 0 ? [{ month: 'Mayo 2024', amount: '25000', receivedBy: 'Admin', date: '01/05/2024' }] : []
+                        horario: i % 3 === 0 ? 'Lunes 10:00' : (i % 3 === 1 ? 'Martes 18:00' : 'Jueves 09:00'),
+                        history: i % 2 === 0 ? [{ 
+                            month: new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }), 
+                            amount: '25000', 
+                            receivedBy: 'Admin', 
+                            date: new Date().toLocaleDateString() 
+                        }] : []
                     }));
                     localStorage.setItem('gf_students', JSON.stringify(localStudents));
                 }
@@ -477,6 +483,8 @@ function App() {
 
     const handleGuestEnter = () => {
         setIsGuestMode(true);
+        // Forzamos limpieza para que se carguen los 50 alumnos nuevos sin el tag "Ejemplo"
+        localStorage.removeItem('gf_students');
         fetchAppData(null);
         showToast("Entrando en Modo Prueba (Sin Cuenta)", "success");
     };
@@ -2394,45 +2402,19 @@ function App() {
             <div className="auth-container">
                 <div className="auth-card animate-fade-in" style={{ padding: '0', overflow: 'hidden' }}>
 
-                    {/* Auth Tabs */}
-                    <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
-                        <button
-                            type="button"
-                            onClick={() => setAuthMode('login')}
-                            style={{
-                                flex: 1, padding: '1.2rem', background: 'none', border: 'none',
-                                borderBottom: authMode === 'login' ? '3px solid var(--primary-color)' : '3px solid transparent',
-                                color: authMode === 'login' ? 'var(--primary-color)' : 'var(--text-muted)',
-                                fontWeight: '600', fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s'
-                            }}
-                        >
-                            INICIAR SESIÓN
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setAuthMode('signup')}
-                            style={{
-                                flex: 1, padding: '1.2rem', background: 'none', border: 'none',
-                                borderBottom: authMode === 'signup' ? '3px solid var(--primary-color)' : '3px solid transparent',
-                                color: authMode === 'signup' ? 'var(--primary-color)' : 'var(--text-muted)',
-                                fontWeight: '600', fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s'
-                            }}
-                        >
-                            CREAR CUENTA
-                        </button>
-                    </div>
-
                     <div style={{ padding: '2rem' }}>
                         <div className="auth-header" style={{ marginBottom: '1.5rem' }}>
                             <div className="auth-logo">
-                                <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
+                                <img src={logo} alt="Gestión Flex Logo" className="main-logo" />
                             </div>
                             <h2 style={{ fontSize: '1.3rem', marginTop: '1rem' }}>
-                                {authMode === 'login' ? 'Bienvenido de nuevo' : 'Comienza tu prueba hoy'}
+                                {authMode === 'login' ? '' : 'Comienza tu prueba hoy'}
                             </h2>
-                            <p style={{ margin: 0 }}>
-                                {authMode === 'login' ? 'Ingresa tus credenciales para continuar' : 'Crea tu cuenta gratis en segundos'}
-                            </p>
+                            {authMode !== 'login' && (
+                                <p style={{ margin: 0 }}>
+                                    Crea tu cuenta gratis en segundos
+                                </p>
+                            )}
                         </div>
 
                         {signupSuccess && (
@@ -2480,13 +2462,9 @@ function App() {
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
-                                {authMode === 'signup' && (
-                                    <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.4rem', fontSize: '0.8rem' }}>Mínimo 6 caracteres</small>
-                                )}
                             </div>
-
                             <button className="btn-confirm-full" type="submit" disabled={authLoading} style={{ marginTop: '0.5rem' }}>
-                                {authLoading ? 'Procesando...' : (authMode === 'login' ? 'Entrar' : 'Registrarse')}
+                                {authLoading ? 'Procesando...' : 'Entrar'}
                             </button>
 
                             <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -2976,7 +2954,7 @@ function App() {
         <div className="app-container">
             <aside className="sidebar">
                 <div className="logo-section">
-                    <h1>{userWorkspace?.name || 'Gestión Flex'}</h1>
+                    <img src={logo} alt="Gestión Flex Logo" className="sidebar-logo" />
                     <span className="beta-label">Gestión inteligente de {getLabel().toLowerCase()}</span>
                 </div>
                 <nav className="nav-menu">
