@@ -101,11 +101,8 @@ function App() {
     const [currentStudent, setCurrentStudent] = useState(null);
     const [isGuestMode, setIsGuestMode] = useState(false); // Guest/Demo mode without password
 
-    // Helpers for dynamic terminology
-    const getLabel = (singular = false) => {
-        if (clientType === 'alumnos') return singular ? 'Alumno' : 'Alumnos';
-        return singular ? 'Paciente' : 'Pacientes';
-    };
+    // Terminology (exclusivo para Alumnos)
+    const getLabel = (singular = false) => (singular ? 'Alumno' : 'Alumnos');
 
     useEffect(() => {
         console.log("Auth Effect: Initializing...");
@@ -2943,13 +2940,16 @@ function App() {
         );
     }
 
-    const filteredStudents = students.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        s.id !== "0" &&
-        (statusFilter === 'todos' || s.status === statusFilter || (!s.status && statusFilter === 'activo')) &&
-        !s.name.toUpperCase().includes("GASTO") &&
-        !s.id.toUpperCase().includes("GASTO")
-    );
+    const filteredStudents = students.filter(s => {
+        const query = searchTerm.toLowerCase().trim();
+        const matchesQuery = !query ||
+            s.name?.toLowerCase().includes(query) ||
+            (s.phone && s.phone.replace(/\D/g, '').includes(query.replace(/\D/g, ''))) ||
+            (s.dni && s.dni.toLowerCase().includes(query));
+        const matchesStatus = statusFilter === 'todos' || s.status === statusFilter || (!s.status && statusFilter === 'activo');
+        const isNotExpense = !s.name?.toUpperCase().includes("GASTO") && !s.id?.toString().toUpperCase().includes("GASTO");
+        return matchesQuery && s.id !== "0" && matchesStatus && isNotExpense;
+    });
     return (
         <div className="app-container">
             <aside className="sidebar">
@@ -3006,10 +3006,20 @@ function App() {
                                 <Search size={18} className="search-icon" />
                                 <input
                                     type="text"
-                                    placeholder={`Buscar ${getLabel(true).toLowerCase()}...`}
+                                    placeholder="Buscar alumno por nombre, teléfono o DNI..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        className="search-clear-btn"
+                                        onClick={() => setSearchTerm('')}
+                                        title="Limpiar búsqueda"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
                             </div>
                             <div className="filter-group">
                                 <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -3167,7 +3177,7 @@ function App() {
                     ) : currentView === 'alumnos' ? (
                         <div className="student-list-container">
                             <div className="list-header">
-                                <h3>Listado de Alumnos ({filteredStudents.length})</h3>
+                                <h3>Listado de Alumnos ({filteredStudents.length}{filteredStudents.length !== students.filter(s => s.id !== "0" && !s.name?.toUpperCase().includes("GASTO")).length ? ` de ${students.filter(s => s.id !== "0" && !s.name?.toUpperCase().includes("GASTO")).length}` : ''})</h3>
                                 <div className="list-actions" style={{ display: 'flex', gap: '0.5rem' }}>
                                     {isLoaded && <button className="btn-secondary-mini" onClick={exportRosterToPDF}><FileText size={16} /> Horarios PDF</button>}
                                     {isLoaded && <button className="btn-secondary-mini" onClick={() => exportToExcel('alumnos')}><Save size={16} /> Excel</button>}
@@ -3176,51 +3186,69 @@ function App() {
 
                             <div className="student-grid">
                                 {students.length > 0 || isLoaded ? (
-                                    filteredStudents.map(student => (
-                                        <div key={student.id} className="student-card" onClick={() => setSelectedStudent(student)}>
-                                            <div className="student-avatar">
-                                                {student.name.charAt(0)}
-                                            </div>
-                                            <div className="student-meta">
-                                                <div className="name-row">
-                                                    <h4>{student.name}</h4>
-                                                    <div className="mini-actions">
-                                                        {hasPaidCurrentMonth(student) ? (
-                                                            <div className="mini-icon check" title="Pago al día">
-                                                                <Check size={14} />
-                                                            </div>
-                                                        ) : (
-                                                            <div className="mini-icon pending" title="Pago pendiente">
-                                                                <Clock size={14} />
-                                                            </div>
-                                                        )}
-                                                        {student.phone && (
-                                                            <a
-                                                                href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="mini-icon whatsapp"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                <MessageCircle size={14} />
-                                                            </a>
-                                                        )}
-                                                    </div>
+                                    filteredStudents.length > 0 ? (
+                                        filteredStudents.map(student => (
+                                            <div key={student.id} className="student-card" onClick={() => setSelectedStudent(student)}>
+                                                <div className="student-avatar">
+                                                    {student.name.charAt(0)}
                                                 </div>
-                                                <p>{student.classesPerWeek} veces por semana</p>
+                                                <div className="student-meta">
+                                                    <div className="name-row">
+                                                        <h4>{student.name}</h4>
+                                                        <div className="mini-actions">
+                                                            {hasPaidCurrentMonth(student) ? (
+                                                                <div className="mini-icon check" title="Pago al día">
+                                                                    <Check size={14} />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="mini-icon pending" title="Pago pendiente">
+                                                                    <Clock size={14} />
+                                                                </div>
+                                                            )}
+                                                            {student.phone && (
+                                                                <a
+                                                                    href={`https://wa.me/${student.phone.replace(/\D/g, '')}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="mini-icon whatsapp"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <MessageCircle size={14} />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <p>{student.classesPerWeek} veces por semana</p>
+                                                </div>
+                                                <div className="card-right-actions">
+                                                    <button
+                                                        className="action-icon delete"
+                                                        onClick={(e) => deleteStudent(student.id, e)}
+                                                        title="Eliminar"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                    <ChevronRight size={18} className="arrow" />
+                                                </div>
                                             </div>
-                                            <div className="card-right-actions">
-                                                <button
-                                                    className="action-icon delete"
-                                                    onClick={(e) => deleteStudent(student.id, e)}
-                                                    title="Eliminar"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                                <ChevronRight size={18} className="arrow" />
-                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="empty-search-state">
+                                            <Search size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+                                            <h4 style={{ color: 'var(--text-main)', marginBottom: '0.25rem', fontSize: '1.1rem' }}>No se encontraron alumnos</h4>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                                                {searchTerm ? `No hay resultados para "${searchTerm}".` : 'No hay alumnos con el filtro de estado seleccionado.'}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                className="btn-secondary"
+                                                onClick={() => { setSearchTerm(''); setStatusFilter('todos'); }}
+                                                style={{ height: '40px', fontSize: '0.9rem' }}
+                                            >
+                                                Limpiar búsqueda y filtros
+                                            </button>
                                         </div>
-                                    ))
+                                    )
                                 ) : (
                                     <div className="empty-state">
                                         <div className="icon-box highlight">
@@ -3807,30 +3835,7 @@ function App() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="form-group" style={{ marginTop: '1rem' }}>
-                                    <label>Modo de Terminología</label>
-                                    <p className="report-subtitle">Cambia cómo se refieren a tus clientes en la app.</p>
-                                    <div className="btn-group-row" style={{ marginTop: '0.5rem' }}>
-                                        <button
-                                            className={`btn-toggle ${clientType === 'alumnos' ? 'active' : ''}`}
-                                            onClick={async () => {
-                                                setClientType('alumnos');
-                                                await supabase.from('workspaces').update({ client_type: 'alumnos' }).eq('id', userWorkspace.id);
-                                            }}
-                                        >
-                                            Alumnos
-                                        </button>
-                                        <button
-                                            className={`btn-toggle ${clientType === 'pacientes' ? 'active' : ''}`}
-                                            onClick={async () => {
-                                                setClientType('pacientes');
-                                                await supabase.from('workspaces').update({ client_type: 'pacientes' }).eq('id', userWorkspace.id);
-                                            }}
-                                        >
-                                            Pacientes
-                                        </button>
-                                    </div>
-                                </div>
+
                                 <div className="form-group" style={{ marginTop: '1rem' }}>
                                     <label>Tu Nombre (Administrador)</label>
                                     <div className="input-with-button" style={{ display: 'flex', gap: '0.5rem' }}>

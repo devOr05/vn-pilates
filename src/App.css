@@ -193,12 +193,47 @@ body {
 
 .search-bar input {
     width: 100%;
-    padding: 0.75rem 1rem 0.75rem 3rem;
+    padding: 0.75rem 2.5rem 0.75rem 3rem;
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--bg-main);
     font-size: 1rem;
     transition: var(--transition);
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem;
+    border-radius: 50%;
+    transition: var(--transition);
+}
+
+.search-clear-btn:hover {
+    color: var(--text-main);
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.empty-search-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem 1.5rem;
+    background: white;
+    border-radius: 16px;
+    border: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .search-bar input:focus {
