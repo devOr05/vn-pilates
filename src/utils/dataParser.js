@@ -33,7 +33,7 @@ export const cleanMoneyString = (str) => {
 };
 
 /**
- * Parses the "Planilla vieja VN" CSV format into structured student data.
+ * Parses the CSV spreadsheet format into structured student data.
  */
 export const parsePilatesCSV = (csvString) => {
     return new Promise((resolve, reject) => {

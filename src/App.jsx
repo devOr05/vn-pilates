@@ -3827,7 +3827,7 @@ function App() {
                                             type="text"
                                             value={editWorkspaceName}
                                             onChange={e => setEditWorkspaceName(e.target.value)}
-                                            placeholder="Ej: VN Pilates"
+                                            placeholder="Ej: Gestión Flex"
                                             style={{ flex: 1 }}
                                         />
                                         <button className="btn-secondary" onClick={saveWorkspaceBranding} style={{ whiteSpace: 'nowrap' }}>
